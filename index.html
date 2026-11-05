@@ -325,6 +325,15 @@ textarea.shuffle-flash { animation: shuffle-flash 600ms ease-out; }
 .check input { width: 16px; height: 16px; accent-color: var(--accent); }
 .mode .rank-input { display: block; margin-top: 6px; max-width: 160px; font-family: var(--font-mono); }
 .prize-grid input:disabled { opacity: 0.45; }
+.errand-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13.5px; }
+.errand-pick select {
+  font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 7px 8px;
+}
+.errand-pick input[type="number"] { width: 64px; font-family: var(--font-mono); text-align: center; padding-inline: 4px; }
+.errand-pick.off { opacity: 0.45; }
+.turn .errand { font-size: 15px; margin-top: 2px; }
+.turn .errand b { font-size: 18px; }
 @media (prefers-reduced-motion: reduce) { .pb-canvas-wrap.boom { animation: none; } }
 
 /* 동물 달리기 */
@@ -435,7 +444,7 @@ footer { color: var(--muted); font-size: 12.5px; }
   .seat.in { animation: none; }
 }
 </style>
-<style>body { margin: 0; }</style>
+<style>body{margin:0}</style>
 </head>
 <body>
 
@@ -561,6 +570,31 @@ footer { color: var(--muted); font-size: 12.5px; }
         <p class="hint">코스의 ? 상자를 지나간 공은 아이템을 얻어요. 뒤처진 공일수록 로켓(선두 앞으로)이나 선두와 자리 바꾸기 같은 강한 아이템이 나와요. 레이스 중 6~10초마다 꼴찌 워프, 선두 함정, 자리 바꾸기, 지진 중 하나도 터집니다. 출발 위치도 매번 무작위로 섞여요. 오른쪽 미니맵을 누르거나 판을 끌면 원하는 구간을 볼 수 있고, 손을 떼면 3초 뒤 다시 공을 따라가요.</p>
       </div>
 
+      <div class="field">
+        <span class="label">사러 가는 사람</span>
+        <div class="modes">
+          <label class="mode">
+            <input type="radio" name="pbErrand" id="pbErrandSelf" value="self">
+            <span><strong>걸린 사람이 직접</strong><small>돈 내는 사람이 사러도 갑니다.</small></span>
+          </label>
+          <label class="mode">
+            <input type="radio" name="pbErrand" id="pbErrandMulti" value="multi">
+            <span><strong>공 여러 개 넣은 사람이 걸리면 따로</strong><small>돈은 걸린 사람이 내고, 사러 가는 건 아래 순서의 사람이 합니다. 공 하나만 넣은 사람이 걸리면 직접 가요.</small></span>
+          </label>
+          <label class="mode">
+            <input type="radio" name="pbErrand" id="pbErrandAlways" value="always">
+            <span><strong>항상 따로</strong><small>누가 걸려도 사러 가는 사람은 아래 순서로 정합니다.</small></span>
+          </label>
+        </div>
+        <div class="errand-pick">
+          <span>남은 사람 중</span>
+          <select id="pbErrandFrom" aria-label="순서를 세는 방향"><option value="back">뒤에서</option><option value="front">앞에서</option></select>
+          <input type="number" id="pbErrandRank" min="1" max="50" inputmode="numeric" aria-label="몇 번째">
+          <span>번째</span>
+        </div>
+        <p class="hint">돈 내는 사람을 뺀 나머지를 경기가 끝난 순간의 순위로 줄 세워 셉니다. 공을 여러 개 넣은 사람은 가장 앞선 공의 순위로 셉니다.</p>
+      </div>
+
     </form>
 
     <section class="board" id="pbBoard">
@@ -596,6 +630,8 @@ footer { color: var(--muted); font-size: 12.5px; }
         </div>
         <textarea id="rrPeople" spellcheck="false" placeholder="한 줄에 한 명씩, 또는 쉼표로 구분"></textarea>
         <div><button type="button" class="text-btn" id="rrImport">배차 명단 불러오기</button></div>
+        <p class="hint">한 사람이 동물을 여러 마리 넣으려면 이름 뒤에 *숫자를 붙이거나 아래에서 조절하세요. 예: 김민수*3. 많이 넣을수록 걸릴 확률도 그만큼 커져요.</p>
+        <div class="pb-counts" id="rrCounts"></div>
       </div>
 
       <div class="field">
@@ -626,7 +662,32 @@ footer { color: var(--muted); font-size: 12.5px; }
           <input type="text" id="rrPenalty" placeholder="커피 쏘기">
         </div>
         <label class="check" for="rrItems"><input type="checkbox" id="rrItems"> 아이템 상자 켜기</label>
-        <p class="hint">레인의 ? 상자를 지나면 아이템이 나와요. 뒤처질수록 로켓(선두 앞으로), 선두와 자리 바꾸기, 번개(앞선 동물 모두 멈춤) 같은 역전 아이템이 나옵니다. 앞서가는 동물은 방심해서 쉬거나 거꾸로 달릴 때가 많고, 뒤처진 동물은 스퍼트가 잦습니다. 11초가 지나면 막판 스퍼트로 모두 빨라져서 15초 안에 끝나요. 규칙은 누구에게나 똑같아요.</p>
+        <p class="hint">레인의 ? 상자를 지나면 아이템이 나와요. 뒤처질수록 로켓(선두 앞으로), 선두와 자리 바꾸기, 번개(앞선 동물 모두 멈춤) 같은 역전 아이템이 나옵니다. 앞서가는 동물은 방심해서 쉬거나 거꾸로 달릴 때가 많고, 뒤처진 동물은 따라잡는 힘이 세져요. 15초가 지나면 막판 스퍼트로 모두 무리 지어 달려서, 20초 안팎에 결승선 앞 접전으로 끝나요. 규칙은 누구에게나 똑같아요.</p>
+      </div>
+
+      <div class="field">
+        <span class="label">사러 가는 사람</span>
+        <div class="modes">
+          <label class="mode">
+            <input type="radio" name="rrErrand" id="rrErrandSelf" value="self">
+            <span><strong>걸린 사람이 직접</strong><small>돈 내는 사람이 사러도 갑니다.</small></span>
+          </label>
+          <label class="mode">
+            <input type="radio" name="rrErrand" id="rrErrandMulti" value="multi">
+            <span><strong>여러 마리 넣은 사람이 걸리면 따로</strong><small>돈은 걸린 사람이 내고, 사러 가는 건 아래 순서의 사람이 합니다. 한 마리만 넣은 사람이 걸리면 직접 가요.</small></span>
+          </label>
+          <label class="mode">
+            <input type="radio" name="rrErrand" id="rrErrandAlways" value="always">
+            <span><strong>항상 따로</strong><small>누가 걸려도 사러 가는 사람은 아래 순서로 정합니다.</small></span>
+          </label>
+        </div>
+        <div class="errand-pick">
+          <span>남은 사람 중</span>
+          <select id="rrErrandFrom" aria-label="순서를 세는 방향"><option value="back">뒤에서</option><option value="front">앞에서</option></select>
+          <input type="number" id="rrErrandRank" min="1" max="50" inputmode="numeric" aria-label="몇 번째">
+          <span>번째</span>
+        </div>
+        <p class="hint">돈 내는 사람을 뺀 나머지를 경기가 끝난 순간의 순위로 줄 세워 셉니다. 여러 마리를 넣은 사람은 가장 앞선 동물의 순위로 셉니다.</p>
       </div>
 
     </form>
@@ -1123,6 +1184,34 @@ window.payRules = {
     if (race.mode === "last") return `끝까지 못 들어온 ${race.k}명이 ${pen}`;
     if (race.mode === "first") return `가장 먼저 들어온 ${race.k}명이 ${pen}`;
     return `${[...race.L].sort((a, b) => a - b).join(", ")}등이 ${pen}`;
+  },
+
+  // 사러 가는 사람: self(걸린 사람이 직접) | multi(여러 개 넣은 사람이 걸리면 따로) | always(항상 따로)
+  errandMode(cfg) { return cfg.errand === "self" || cfg.errand === "always" ? cfg.errand : "multi"; },
+  errandRule(cfg) {
+    return { n: Math.max(1, Math.floor(Number(cfg.errandRank) || 1)), from: cfg.errandFrom === "front" ? "front" : "back" };
+  },
+  errandGoal(cfg, unit) {
+    const mode = this.errandMode(cfg);
+    if (mode === "self") return "";
+    const { n, from } = this.errandRule(cfg);
+    const pos = `${from === "front" ? "앞에서" : "뒤에서"} ${n}번째`;
+    return mode === "always" ? `사러 가는 건 ${pos}` : `${unit} 넣은 사람이 걸리면 ${pos}가 사러 감`;
+  },
+  // order: 경기 끝난 순간의 순위대로 늘어선 공·동물({ owner }). 돈 내는 사람을 빼고 각자 가장 앞선 자리로 줄 세운다
+  pickErrand(cfg, payers, order) {
+    const mode = this.errandMode(cfg);
+    if (mode === "self") return null;
+    const pay = new Set(payers);
+    const own = new Map();
+    order.forEach((r) => own.set(r.owner, (own.get(r.owner) || 0) + 1));
+    if (mode === "multi" && !payers.some((p) => own.get(p) > 1)) return null;
+    const people = [];
+    order.forEach((r) => { if (!pay.has(r.owner) && !people.includes(r.owner)) people.push(r.owner); });
+    if (!people.length) return null;
+    const { n, from } = this.errandRule(cfg);
+    const i = Math.min(n, people.length) - 1;
+    return from === "front" ? people[i] : people[people.length - 1 - i];
   }
 };
 </script>
@@ -1157,13 +1246,16 @@ window.payRules = {
     form: $("pbForm"), people: $("pbPeople"), count: $("pbCount"), importBtn: $("pbImport"),
     modeLast: $("pbModeLast"), modeFirst: $("pbModeFirst"), modeRank: $("pbModeRank"), ranks: $("pbRanks"),
     twists: $("pbTwists"), feed: $("pbFeed"), shuffle: $("pbShuffle"), items: $("pbItems"), counts: $("pbCounts"), losers: $("pbLosers"), penalty: $("pbPenalty"),
+    errandSelf: $("pbErrandSelf"), errandMulti: $("pbErrandMulti"), errandAlways: $("pbErrandAlways"),
+    errandFrom: $("pbErrandFrom"), errandRank: $("pbErrandRank"), errandPick: document.querySelector("#view-pinball .errand-pick"),
     stats: $("pbStats"), sound: $("pbSound"), copy: $("pbCopy"), status: $("pbStatus"),
     wrap: $("pbWrap"), canvas: $("pbCanvas"), rank: $("pbRank"), copyFallback: $("pbCopyFallback")
   };
   const ctx = els.canvas.getContext("2d");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  let cfg = load() || { people: "", mode: "last", losers: 1, penalty: "커피 쏘기" };
+  let cfg = Object.assign({ errand: "multi", errandFrom: "back", errandRank: 1 },
+    load() || { people: "", mode: "last", losers: 1, penalty: "커피 쏘기" });
   let soundOn = true;
   try { soundOn = localStorage.getItem(SOUND_KEY) !== "off"; } catch (e) {}
 
@@ -1473,6 +1565,8 @@ window.payRules = {
     slowmo = false;
     list.forEach((b) => { b.lost = true; });
     race.losers = [...new Set(list.map((b) => b.owner))];
+    const order = finished.concat(balls.filter((b) => !b.done).sort((a, b) => b.body.position.y - a.body.position.y));
+    race.errand = rules.pickErrand(cfg, race.losers, order);
     blast();
     window.celebrate();
     if (!reduceMotion) {
@@ -1895,7 +1989,8 @@ window.payRules = {
       statusKey = "";
       return;
     }
-    const goal = rules.goal(race, penalty());
+    const eg = rules.errandGoal(cfg, "공 여러 개");
+    const goal = rules.goal(race, penalty()) + (eg ? ` · ${eg}` : "");
     const deciding = rules.deciding(race, finished.length);
     const key = [phase, countLeft, finished.length, deciding, goal].join("|");
     if (key === statusKey) return;
@@ -1903,7 +1998,8 @@ window.payRules = {
     if (phase === "over") {
       s.className = "turn final";
       s.innerHTML = `<div class="turn-who"><span class="v-label">${esc(penalty())}</span>
-        <span class="turn-name">${esc(race.losers.join(", "))}</span></div>
+        <span class="turn-name">${esc(race.losers.join(", "))}</span>
+        ${race.errand ? `<span class="errand">사러 가는 사람 <b>${esc(race.errand)}</b></span>` : ""}</div>
         <button type="button" data-act="again">한 판 더</button>`;
       return;
     }
@@ -2080,6 +2176,26 @@ window.payRules = {
 
   els.twists.checked = cfg.twists !== false;
   els.twists.addEventListener("change", () => { cfg.twists = els.twists.checked; save(); });
+
+  // 사러 가는 사람
+  function renderErrand() {
+    const mode = rules.errandMode(cfg);
+    ({ self: els.errandSelf, always: els.errandAlways }[mode] || els.errandMulti).checked = true;
+    els.errandPick.classList.toggle("off", mode === "self");
+    els.errandFrom.disabled = els.errandRank.disabled = mode === "self";
+  }
+  [els.errandSelf, els.errandMulti, els.errandAlways].forEach((r) => r.addEventListener("change", () => {
+    cfg.errand = r.value;
+    save();
+    renderErrand();
+    statusKey = "";
+    renderStatus();
+  }));
+  els.errandFrom.addEventListener("change", () => { cfg.errandFrom = els.errandFrom.value; save(); statusKey = ""; renderStatus(); });
+  els.errandRank.addEventListener("input", () => { cfg.errandRank = els.errandRank.value; save(); statusKey = ""; renderStatus(); });
+  els.errandFrom.value = cfg.errandFrom === "front" ? "front" : "back";
+  els.errandRank.value = cfg.errandRank;
+  renderErrand();
   els.importBtn.addEventListener("click", () => {
     const names = parseNames($("people").value);
     if (!names.length) return;
@@ -2113,7 +2229,9 @@ window.payRules = {
   });
   els.copy.addEventListener("click", () => {
     if (phase !== "over") return;
-    const lines = [`[핀볼 레이스] ${fmtTime(race.at)}`, `${penalty()}: ${race.losers.join(", ")}`, ""];
+    const lines = [`[핀볼 레이스] ${fmtTime(race.at)}`, `${penalty()}: ${race.losers.join(", ")}`];
+    if (race.errand) lines.push(`사러 가는 사람: ${race.errand}`);
+    lines.push("");
     finished.forEach((b) => lines.push(`${b.rank}위 ${b.name}`));
     const rest = balls.filter((b) => !b.done).map((b) => b.name);
     if (rest.length) lines.push(`결승선 못 넘음: ${rest.join(", ")}`);
@@ -2148,15 +2266,21 @@ window.payRules = {
   const rules = window.payRules;
   const SOUND_KEY = "animal-race-sound";
   const LEN = 100;           // 트랙 길이
-  const BASE = LEN / 10;     // 평소 속도(초당), 아무 일 없으면 10초 완주
-  const SPRINT_AT = 11000;   // 출발 후 이 시간이 지나면 막판 스퍼트: 쉬거나 거꾸로 가지 않고 빨라진다
+  const RACE_S = 19;         // 페이스메이커가 결승선에 닿는 시간(초). 슬로 모션까지 더하면 20초 안팎
+  const BASE = LEN / RACE_S; // 평소 속도(초당)
+  const SPRINT_AT = 15000;   // 이때부터 막판 스퍼트: 쉬거나 거꾸로 가지 않고, 무리 지어 결승선으로
+  const PULL = 0.3;          // 페이스메이커와 벌어진 만큼 당기는 힘(초당). 앞서면 느려지고 뒤처지면 빨라진다
+  const PULL_SPRINT = 0.75;  // 막판 스퍼트 때 당기는 힘: 다들 비슷하게 들어오도록
+  const MAX_COUNT = 10;      // 한 사람이 넣을 수 있는 동물 수
   const ITEM_X = [30, 58, 82];   // 레인마다 놓인 아이템 상자 위치
   const STEP = 50;           // 시뮬레이션 한 스텝(ms)
   const $ = (id) => document.getElementById(id);
   const view = $("view-race");
   const els = {
-    form: $("rrForm"), people: $("rrPeople"), count: $("rrCount"), importBtn: $("rrImport"),
+    form: $("rrForm"), people: $("rrPeople"), count: $("rrCount"), importBtn: $("rrImport"), counts: $("rrCounts"),
     modeLast: $("rrModeLast"), modeFirst: $("rrModeFirst"), modeRank: $("rrModeRank"), ranks: $("rrRanks"), shuffle: $("rrShuffle"),
+    errandSelf: $("rrErrandSelf"), errandMulti: $("rrErrandMulti"), errandAlways: $("rrErrandAlways"),
+    errandFrom: $("rrErrandFrom"), errandRank: $("rrErrandRank"), errandPick: document.querySelector("#view-race .errand-pick"),
     items: $("rrItems"), losers: $("rrLosers"), penalty: $("rrPenalty"),
     stats: $("rrStats"), sound: $("rrSound"), copy: $("rrCopy"), status: $("rrStatus"),
     track: $("rrTrack"), feed: $("rrFeed"), copyFallback: $("rrCopyFallback")
@@ -2176,7 +2300,8 @@ window.payRules = {
   ];
   const BUBBLE = { nap: "쿨쿨", boost: "슝!", slip: "꽈당", reverse: "역주행!" };
 
-  let cfg = load() || { people: "", mode: "last", losers: 1, penalty: "커피 쏘기" };
+  let cfg = Object.assign({ errand: "multi", errandFrom: "back", errandRank: 1 },
+    load() || { people: "", mode: "last", losers: 1, penalty: "커피 쏘기" });
   let soundOn = true;
   try { soundOn = localStorage.getItem(SOUND_KEY) !== "off"; } catch (e) {}
 
@@ -2206,6 +2331,19 @@ window.payRules = {
     const seen = new Set();
     return text.split(/[\n,]/).map((s) => s.trim()).filter((s) => s && !seen.has(s) && seen.add(s));
   }
+  // "이름*3" 또는 "이름 x3" → 그 사람 동물 3마리
+  function parseEntries(text) {
+    const seen = new Map();
+    for (const part of text.split(/[\n,]/)) {
+      const raw = part.trim();
+      if (!raw) continue;
+      const m = raw.match(/^(.*?)(?:\s*\*\s*|\s+[xX×]\s*)(\d+)$/);
+      const name = (m ? m[1] : raw).trim();
+      if (name && !seen.has(name)) seen.set(name, m ? Math.max(1, Math.min(MAX_COUNT, parseInt(m[2], 10))) : 1);
+    }
+    return [...seen].map(([name, count]) => ({ name, count }));
+  }
+  const entriesText = (list) => list.map((e) => (e.count > 1 ? `${e.name}*${e.count}` : e.name)).join("\n");
   function esc(s) {
     return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -2216,6 +2354,12 @@ window.payRules = {
   const clock = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
   const penalty = () => cfg.penalty.trim() || "커피 쏘기";
   const who = (r) => `${r.a.n} ${r.name}`;
+
+  /* ---------- 사러 가는 사람 (규칙은 핀볼과 공통) ---------- */
+  const errandMode = () => rules.errandMode(cfg);
+  const errandGoal = () => rules.errandGoal(cfg, "여러 마리");
+  const pickErrand = (payers) =>
+    rules.pickErrand(cfg, payers, finished.concat(runners.filter((r) => !r.done).sort((a, b) => b.x - a.x)));
 
   /* ---------- 소리 ---------- */
   let actx = null;
@@ -2268,20 +2412,24 @@ window.payRules = {
     phase = "ready"; simTime = 0; raceStart = 0; acc = 0; slowmo = false; statusKey = ""; sprintOn = false;
     finished = []; feed = []; leaderName = ""; lastLeadMsg = 0;
     els.track.classList.remove("over", "boom");
-    const names = parseNames(cfg.people);
-    if (names.length < 2) {
+    const entries = parseEntries(cfg.people);
+    if (entries.length < 2) {
       race = null; runners = [];
       els.track.innerHTML = `<div class="empty-board">참가자를 두 명 이상 넣으면 여기에 트랙이 깔립니다.</div>`;
       renderAll();
       return;
     }
-    const n = names.length;
-    race = { n, ...rules.config(cfg, n), at: new Date(), losers: [] };
+    const list = [];
+    entries.forEach((e) => {
+      for (let j = 1; j <= e.count; j++) list.push({ name: e.count > 1 ? `${e.name} ${j}` : e.name, owner: e.name, own: e.count });
+    });
+    const n = list.length;
+    race = { n, people: entries.length, ...rules.config(cfg, n), at: new Date(), losers: [], errand: null };
     // 토끼와 거북이는 꼭 출전, 나머지 동물은 무작위
     const pool = [ANIMALS[0], ANIMALS[1], ...shuffle(ANIMALS.slice(2))];
-    const picks = shuffle(names.map((_, i) => pool[i % pool.length]));
-    runners = names.map((name, i) => ({
-      name, a: picks[i], x: 0, drift: 0, mood: "run", until: 0, done: false, rank: 0, lost: false,
+    const picks = shuffle(list.map((_, i) => pool[i % pool.length]));
+    runners = list.map((p, i) => ({
+      ...p, a: picks[i], x: 0, drift: 0, mood: "run", until: 0, done: false, rank: 0, lost: false,
       taken: new Set(), itemText: "", itemUntil: 0, warpUntil: 0
     }));
 
@@ -2338,35 +2486,41 @@ window.payRules = {
     const live = runners.filter((r) => !r.done);
     if (!live.length) return;
     const leadX = Math.max(...live.map((r) => r.x));
-    const sprint = simTime - raceStart >= SPRINT_AT;
+    const t = simTime - raceStart;
+    const sprint = t >= SPRINT_AT;
+    // 보이지 않는 페이스메이커: RACE_S초에 결승선. 다들 이 자리로 끌려가서 크게 벌어지지 않는다
+    const pacer = Math.min(LEN + 8, BASE * t / 1000);
+    const pull = sprint ? PULL_SPRINT : PULL;
     if (sprint && !sprintOn) {
       sprintOn = true;
       live.forEach((r) => { if (r.mood === "nap" || r.mood === "reverse") r.mood = "run"; });
-      addFeed("막판 스퍼트! 이제 모두 전력 질주");
+      addFeed("막판 스퍼트! 다 같이 결승선으로");
       sfx("boost");
     }
     for (const r of live) {
-      r.drift = Math.max(-0.2, Math.min(0.2, r.drift + (rand() - 0.5) * 1.5 * dt));
+      r.drift = Math.max(-0.25, Math.min(0.25, r.drift + (rand() - 0.5) * 1.6 * dt));
       if (r.mood !== "run" && simTime >= r.until) r.mood = "run";
       if (r.mood === "run" && r.x > 3 && !sprint) {
         // 같은 규칙: 선두는 방심(낮잠·역주행)이 잦고, 뒤처질수록 스퍼트가 잦다
-        const gap = Math.min(1, (leadX - r.x) / 25);
+        const gap = Math.min(1, (leadX - r.x) / 20);
         const isLead = r.x === leadX;
-        const pNap = (0.075 + (isLead ? 0.12 : 0)) * dt;
-        const pBoost = (0.09 + gap * 0.2) * dt;
-        const pSlip = 0.03 * dt;
-        const pBack = (0.045 + (isLead ? 0.05 : 0)) * dt;
+        const pNap = (0.055 + (isLead ? 0.1 : 0)) * dt;
+        const pBoost = (0.06 + gap * 0.18) * dt;
+        const pSlip = 0.025 * dt;
+        const pBack = (0.035 + (isLead ? 0.04 : 0)) * dt;
         const u = rand();
-        if (u < pNap) startMood(r, "nap", 600 + rand() * 900);
+        if (u < pNap) startMood(r, "nap", 600 + rand() * 800);
         else if (u < pNap + pBoost) startMood(r, "boost", 350 + rand() * 400);
         else if (u < pNap + pBoost + pSlip) startMood(r, "slip", 300);
-        else if (u < pNap + pBoost + pSlip + pBack) startMood(r, "reverse", 500 + rand() * 500);
+        else if (u < pNap + pBoost + pSlip + pBack) startMood(r, "reverse", 500 + rand() * 400);
       }
+      // 달리는 중이면 페이스메이커와 벌어진 만큼 따라잡거나 늦춘다
+      const band = Math.max(-0.55 * BASE, Math.min(1.6 * BASE, pull * (pacer - r.x)));
       const v = r.mood === "nap" ? 0
-        : r.mood === "boost" ? BASE * 2.3
+        : r.mood === "boost" ? BASE * 2.3 + Math.max(0, band)
         : r.mood === "slip" ? -BASE * 0.9
         : r.mood === "reverse" ? -BASE * 1.3
-        : BASE * (1 + r.drift) * (sprint ? 2.2 : 1);
+        : BASE * (1 + r.drift) + band;
       const before = r.x;
       r.x = Math.max(0, r.x + v * dt);
       if (cfg.items !== false) {
@@ -2464,8 +2618,9 @@ window.payRules = {
     slowmo = false;
     if (slowEl) slowEl.hidden = true;
     list.forEach((r) => { r.lost = true; });
-    race.losers = list.map((r) => r.name);
-    addFeed(`결과: ${race.losers.join(", ")} ${penalty()}`);
+    race.losers = [...new Set(list.map((r) => r.owner))];
+    race.errand = pickErrand(race.losers);
+    addFeed(`결과: ${race.losers.join(", ")} ${penalty()}${race.errand ? ` · 사러 가는 사람: ${race.errand}` : ""}`);
     blast();
     window.celebrate();
     els.track.classList.add("over");
@@ -2520,7 +2675,8 @@ window.payRules = {
       statusKey = "";
       return;
     }
-    const goal = rules.goal(race, penalty());
+    const eg = errandGoal();
+    const goal = rules.goal(race, penalty()).replace(/명이 /, race.n > race.people ? "마리 주인이 " : "명이 ") + (eg ? ` · ${eg}` : "");
     const deciding = rules.deciding(race, finished.length);
     const key = [phase, countLeft, finished.length, deciding, goal, leaderName].join("|");
     if (key === statusKey) return;
@@ -2528,7 +2684,8 @@ window.payRules = {
     if (phase === "over") {
       s.className = "turn final";
       s.innerHTML = `<div class="turn-who"><span class="v-label">${esc(penalty())}</span>
-        <span class="turn-name">${esc(race.losers.join(", "))}</span></div>
+        <span class="turn-name">${esc(race.losers.join(", "))}</span>
+        ${race.errand ? `<span class="errand">사러 가는 사람 <b>${esc(race.errand)}</b></span>` : ""}</div>
         <button type="button" data-act="again">한 판 더</button>`;
       return;
     }
@@ -2544,14 +2701,38 @@ window.payRules = {
   }
 
   function renderStats() {
-    els.count.textContent = `${parseNames(cfg.people).length}명`;
+    const list = parseEntries(cfg.people);
+    const total = list.reduce((s, e) => s + e.count, 0);
+    els.count.textContent = total > list.length ? `${list.length}명 · ${total}마리` : `${list.length}명`;
     els.sound.textContent = soundOn ? "소리 켜짐" : "소리 꺼짐";
     els.sound.setAttribute("aria-pressed", soundOn ? "true" : "false");
     els.copy.disabled = phase !== "over";
     els.shuffle.disabled = phase === "race" || phase === "count";
     if (!race) { els.stats.innerHTML = ""; return; }
     const t = phase === "race" || phase === "over" ? simTime - raceStart : 0;
-    els.stats.innerHTML = `<span>참가 <b>${race.n}</b>명</span><span>사는 사람 <b>${race.k}</b>명</span><span>경과 <b>${clock(t)}</b></span>`;
+    els.stats.innerHTML = `<span>참가 <b>${race.people}</b>명</span>` +
+      (race.n > race.people ? `<span>동물 <b>${race.n}</b>마리</span><span>걸리는 동물 <b>${race.k}</b>마리</span>` : `<span>사는 사람 <b>${race.k}</b>명</span>`) +
+      `<span>경과 <b>${clock(t)}</b></span>`;
+  }
+
+  // 사람마다 동물 수를 −/+ 로 조절하는 목록
+  function renderCounts() {
+    const list = parseEntries(cfg.people);
+    if (!list.length) { els.counts.innerHTML = ""; return; }
+    const lock = !(phase === "ready" || phase === "over");
+    els.counts.innerHTML = `<span class="label">동물 수</span>` + list.map((e, i) => `
+      <div class="pb-count"><span class="nm" title="${esc(e.name)}">${esc(e.name)}</span>
+        <button type="button" data-i="${i}" data-d="-1" aria-label="${esc(e.name)} 동물 한 마리 빼기"${lock || e.count <= 1 ? " disabled" : ""}>−</button>
+        <b>${e.count}</b>
+        <button type="button" data-i="${i}" data-d="1" aria-label="${esc(e.name)} 동물 한 마리 더하기"${lock || e.count >= MAX_COUNT ? " disabled" : ""}>+</button>
+      </div>`).join("");
+  }
+
+  function renderErrand() {
+    const mode = errandMode();
+    ({ self: els.errandSelf, always: els.errandAlways }[mode] || els.errandMulti).checked = true;
+    els.errandPick.classList.toggle("off", mode === "self");
+    els.errandFrom.disabled = els.errandRank.disabled = mode === "self";
   }
 
   function renderAll() {
@@ -2559,6 +2740,7 @@ window.payRules = {
     statusKey = "";
     renderStatus();
     renderStats();
+    renderCounts();
     if (!feed.length) els.feed.innerHTML = "";
   }
 
@@ -2629,14 +2811,14 @@ window.payRules = {
     if (idle()) setup();
   });
   els.shuffle.addEventListener("click", () => {
-    const names = parseNames(cfg.people);
-    if (!idle() || names.length < 2) return;
-    cfg.people = shuffle(names).join("\n");
+    const list = parseEntries(cfg.people);
+    if (!idle() || list.length < 2) return;
+    cfg.people = entriesText(shuffle(list));
     els.people.value = cfg.people;
     save();
     setup();
     if (!reduceMotion) {
-      [els.track || els.rank, els.people].forEach((el) => {
+      [els.track, els.people].forEach((el) => {
         const cls = el === els.people ? "shuffle-flash" : "shuffle-in";
         el.classList.remove(cls);
         void el.offsetWidth;
@@ -2645,6 +2827,27 @@ window.payRules = {
       });
     }
   });
+  els.counts.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-d]");
+    if (!btn || !idle()) return;
+    const list = parseEntries(cfg.people);
+    const it = list[Number(btn.dataset.i)];
+    if (!it) return;
+    it.count = Math.max(1, Math.min(MAX_COUNT, it.count + Number(btn.dataset.d)));
+    cfg.people = entriesText(list);
+    els.people.value = cfg.people;
+    save();
+    setup();
+  });
+  [els.errandSelf, els.errandMulti, els.errandAlways].forEach((r) => r.addEventListener("change", () => {
+    cfg.errand = r.value;
+    save();
+    renderErrand();
+    statusKey = "";
+    renderStatus();
+  }));
+  els.errandFrom.addEventListener("change", () => { cfg.errandFrom = els.errandFrom.value; save(); statusKey = ""; renderStatus(); });
+  els.errandRank.addEventListener("input", () => { cfg.errandRank = els.errandRank.value; save(); statusKey = ""; renderStatus(); });
   els.sound.addEventListener("click", () => {
     soundOn = !soundOn;
     try { localStorage.setItem(SOUND_KEY, soundOn ? "on" : "off"); } catch (e) {}
@@ -2653,7 +2856,9 @@ window.payRules = {
   });
   els.copy.addEventListener("click", () => {
     if (phase !== "over") return;
-    const lines = [`[동물 달리기] ${fmtTime(race.at)}`, `${penalty()}: ${race.losers.join(", ")}`, ""];
+    const lines = [`[동물 달리기] ${fmtTime(race.at)}`, `${penalty()}: ${race.losers.join(", ")}`];
+    if (race.errand) lines.push(`사러 가는 사람: ${race.errand}`);
+    lines.push("");
     finished.forEach((r) => lines.push(`${r.rank}위 ${r.name} (${r.a.n})`));
     const rest = runners.filter((r) => !r.done).map((r) => `${r.name} (${r.a.n})`);
     if (rest.length) lines.push(`결승선 못 넘음: ${rest.join(", ")}`);
@@ -2677,9 +2882,13 @@ window.payRules = {
   ({ first: els.modeFirst, rank: els.modeRank }[cfg.mode] || els.modeLast).checked = true;
   els.ranks.value = cfg.ranks || "2";
   els.losers.disabled = cfg.mode === "rank";
+  els.errandFrom.value = cfg.errandFrom === "front" ? "front" : "back";
+  els.errandRank.value = cfg.errandRank;
+  renderErrand();
   setup();
   requestAnimationFrame(frame);
 })();
 </script>
+
 </body>
 </html>
