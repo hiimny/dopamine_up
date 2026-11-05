@@ -1439,6 +1439,7 @@ window.payRules = {
   let engine, course, race = null, balls = [], finished = [];
   let phase = "ready";     // ready | count | race | over
   let simTime = 0, raceStart = 0, acc = 0, camY = 0, slowmo = false;
+  let alpha = 1;           // 물리 스텝 사이 어디쯤을 그릴지 (0~1). 화면 갱신과 물리 스텝이 어긋나도 공이 부드럽게 움직인다
   let countLeft = 0, countTimer = 0;
   let statusKey = "", rankTimer = 0;
   let nextTwist = Infinity, effects = [], banner = null, feed = [];
@@ -1524,6 +1525,7 @@ window.payRules = {
     for (const b of course.bumpers) b.flash = Math.max(0, b.flash - dt / 300);
     for (const b of course.items) b.flash = Math.max(0, b.flash - dt / 500);
     if (phase === "race" && simTime - raceStart > 150000) engine.gravity.y = 1.8;
+    for (const b of balls) { b.px = b.body.position.x; b.py = b.body.position.y; }
     Engine.update(engine, dt);
     while (itemQueue.length) applyItem(itemQueue.shift());
 
@@ -1746,6 +1748,13 @@ window.payRules = {
     camY += (target - camY) * 0.08;
   }
 
+  // 직전 스텝과 지금 스텝 사이를 alpha만큼 이어서 그린다. 순간이동처럼 크게 튄 경우는 그냥 지금 자리
+  function pos(b) {
+    const p = b.body.position;
+    if (b.px === undefined || Math.abs(p.x - b.px) + Math.abs(p.y - b.py) > 40) return p;
+    return { x: b.px + (p.x - b.px) * alpha, y: b.py + (p.y - b.py) * alpha };
+  }
+
   function fillParts(body) {
     const parts = body.parts.length > 1 ? body.parts.slice(1) : body.parts;
     for (const p of parts) {
@@ -1845,7 +1854,7 @@ window.payRules = {
 
     const live = balls.filter((b) => !b.done);
     for (const b of live) {
-      const { x, y } = b.body.position;
+      const { x, y } = pos(b);
       if (y < top || y > bottom) continue;
       if (b.lost) {
         ctx.strokeStyle = col.warn;
@@ -1868,7 +1877,7 @@ window.payRules = {
     ctx.font = `600 ${fs}px "IBM Plex Sans KR", "Malgun Gothic", sans-serif`;
     ctx.textBaseline = "middle";
     for (const b of live) {
-      const { x, y } = b.body.position;
+      const { x, y } = pos(b);
       if (y < top || y > bottom) continue;
       const tw = ctx.measureText(b.name).width;
       const left = x > W - tw - 30;
@@ -2095,11 +2104,14 @@ window.payRules = {
     }
     if (phase !== "over") {
       updateSlowmo();
-      acc += elapsed * (slowmo ? 0.35 : 1);
+      // 슬로 모션은 스텝을 건너뛰지 않고 한 스텝의 시간을 줄여서 만든다 (건너뛰면 공이 뚝뚝 끊겨 보인다)
+      const ts = slowmo ? 0.35 : 1;
+      acc += elapsed;
       let n = 0;
-      while (acc >= STEP && n < 8) { step(STEP); acc -= STEP; n++; if (phase === "over") break; }
+      while (acc >= STEP && n < 8) { step(STEP * ts); acc -= STEP; n++; if (phase === "over") break; }
       if (n === 8) acc = 0;
     }
+    alpha = phase === "over" ? 1 : Math.min(1, acc / STEP);
     updateCamera();
     draw();
     rankTimer += elapsed;
