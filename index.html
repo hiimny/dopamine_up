@@ -1235,7 +1235,9 @@ window.payRules = {
   const R = 9;              // 공 반지름
   const STEP = 1000 / 120;  // 물리 한 스텝(ms)
   const SLIDE_TOP = 2390, SLIDE_END = 2560;   // 마지막 미끄럼틀 ~ 결승선
-  const SLIDE_PUSH = 1.8;   // 그 구간에서 더해 주는 중력(기본 중력의 배수)
+  const SLIDE_PUSH = 1.2;   // 그 구간에서 더해 주는 중력(기본 중력의 배수)
+  const GRAVITY = 1.6;      // 중력. 클수록 떨어질수록 확확 빨라진다
+  const MAX_V = 20;         // 공 최고 속도 (벽을 뚫고 나가지 않을 만큼)
   const SLOW_ZONE = 70;     // 결승선 이만큼 앞부터 슬로 모션 (미끄럼틀을 다 내려온 뒤)
   const SLOW_RATE = 0.6;    // 슬로 모션 속도
   const $ = (id) => document.getElementById(id);
@@ -1377,8 +1379,8 @@ window.payRules = {
       for (let x = odd ? 60 : 40; x <= (odd ? 300 : 320); x += 40) peg(x, y);
     }
     // 깔때기 + 십자 회전 막대
-    wall(0, 690, 148, 770);
-    wall(W, 690, 212, 770);
+    wall(0, 678, 148, 780);
+    wall(W, 678, 212, 780);
     spinner(180, 835, 110, 2.4, true);
 
     // 2구간: 범퍼
@@ -1388,11 +1390,11 @@ window.payRules = {
       .forEach(([x, y]) => peg(x, y));
 
     // 3구간: 지그재그 경사로
-    wall(0, 1380, 255, 1440);
-    wall(W, 1500, 105, 1560);
-    wall(0, 1620, 255, 1680);
-    wall(W, 1740, 105, 1800);
-    peg(310, 1468); peg(50, 1590); peg(310, 1708);
+    wall(0, 1370, 255, 1470);
+    wall(W, 1490, 105, 1590);
+    wall(0, 1610, 255, 1710);
+    wall(W, 1730, 105, 1830);
+    peg(310, 1474); peg(50, 1596); peg(310, 1714);
     spinner(52, 1870, 70, 3, false);
 
     // 4구간: 플리퍼
@@ -1406,8 +1408,8 @@ window.payRules = {
 
     // 마지막: 회전 막대 + 좁은 출구
     spinner(180, 2375, 90, 2.8, false);
-    wall(0, 2410, 144, 2490);
-    wall(W, 2410, 216, 2490);
+    wall(0, 2398, 144, 2496);
+    wall(W, 2398, 216, 2496);
 
     // 아이템 상자: 지나가기만 하면 발동하는 센서
     [[180, 790], [120, 1335], [240, 1335], [60, 1915], [180, 2290]].forEach(([x, y]) => {
@@ -1449,7 +1451,7 @@ window.payRules = {
 
   function setup() {
     engine = Engine.create({ positionIterations: 8, velocityIterations: 8 });
-    engine.gravity.y = 1;
+    engine.gravity.y = GRAVITY;
     course = buildCourse(engine.world);
     Events.on(engine, "collisionStart", onCollide);
     balls = []; finished = [];
@@ -1461,15 +1463,15 @@ window.payRules = {
     if (entries.length < 2) { race = null; renderAll(); return; }
     const n = entries.reduce((s, e) => s + e.count, 0);   // 공 하나가 한 자리
     race = { n, people: entries.length, ...rules.config(cfg, n), at: new Date(), losers: [] };
-    const people = shuffle(entries.flatMap((e, i) => Array.from({ length: e.count }, (_, c) => ({
-      name: e.count > 1 ? `${e.name} ${c + 1}` : e.name,
+    const people = shuffle(entries.flatMap((e, i) => Array.from({ length: e.count }, () => ({
+      name: e.name,
       owner: e.name,
       hue: Math.round((i * 137.5 + 20) % 360)
     }))));
     balls = people.map((p, j) => {
       const x = 40 + (j % 8) * 40 + (randInt(9) - 4);
       const y = 112 - Math.floor(j / 8) * 24;
-      const body = Bodies.circle(x, y, R, { restitution: 0.55, friction: 0.005, frictionAir: 0.004, density: 0.0025, label: "ball" });
+      const body = Bodies.circle(x, y, R, { restitution: 0.55, friction: 0.005, frictionAir: 0.002, density: 0.0025, label: "ball" });
       Composite.add(engine.world, body);
       return { ...p, body, done: false, lost: false, rank: 0, best: y, bestAt: 0, taken: new Set() };
     });
@@ -1523,7 +1525,7 @@ window.payRules = {
     for (const f of course.flippers) placeFlipper(f, t);
     for (const b of course.bumpers) b.flash = Math.max(0, b.flash - dt / 300);
     for (const b of course.items) b.flash = Math.max(0, b.flash - dt / 500);
-    if (phase === "race" && simTime - raceStart > 150000) engine.gravity.y = 1.8;
+    if (phase === "race" && simTime - raceStart > 150000) engine.gravity.y = GRAVITY * 1.8;
     for (const b of balls) {
       b.px = b.body.position.x; b.py = b.body.position.y;
       // 마지막 미끄럼틀은 중력을 더 받아 시원하게 내려간다
@@ -1538,7 +1540,7 @@ window.payRules = {
       const body = b.body;
       const v = body.velocity;
       const sp = Math.hypot(v.x, v.y);
-      if (sp > 16) Body.setVelocity(body, { x: v.x / sp * 16, y: v.y / sp * 16 });
+      if (sp > MAX_V) Body.setVelocity(body, { x: v.x / sp * MAX_V, y: v.y / sp * MAX_V });
       if (phase !== "race") continue;
       const y = body.position.y;
       if (y > FINISH_Y) { finish(b); continue; }
@@ -2443,7 +2445,7 @@ window.payRules = {
     }
     const list = [];
     entries.forEach((e) => {
-      for (let j = 1; j <= e.count; j++) list.push({ name: e.count > 1 ? `${e.name} ${j}` : e.name, owner: e.name, own: e.count });
+      for (let j = 1; j <= e.count; j++) list.push({ name: e.name, owner: e.name, own: e.count });
     });
     const n = list.length;
     race = { n, people: entries.length, ...rules.config(cfg, n), at: new Date(), losers: [], errand: null };
