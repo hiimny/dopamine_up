@@ -339,21 +339,55 @@ textarea.shuffle-flash { animation: shuffle-flash 600ms ease-out; }
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
 }
 .rr-track.boom { animation: boom 520ms ease-out; }
-.rr-lane {
+.rr-lane, .rr-ruler {
   display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px; align-items: center; gap: 10px;
-  min-height: 52px; border-bottom: 1px dashed var(--line);
 }
-.rr-lane:last-of-type { border-bottom: none; }
+.rr-lane { min-height: 52px; border-bottom: 1px solid var(--surface); }
 .rr-name { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-name::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; vertical-align: 1px;
+  background: hsl(var(--h, 210) 72% var(--trace-l));
+}
 .rr-lane.lead .rr-name { font-weight: 700; }
 .rr-lane.lost { background: var(--warn-bg); border-radius: 6px; }
 .rr-lane.lost .rr-name { color: var(--warn); font-weight: 700; }
-.rr-run { position: relative; height: 50px; border-left: 2px solid var(--muted); }
+/* 레인: --off 는 달리는 동물 폭만큼 빼는 값, --half 는 동물 가운데까지 */
+.rr-run {
+  --off: 44px; --half: 18px;
+  position: relative; height: 50px; border-left: 2px solid var(--muted); border-radius: 0 6px 6px 0;
+  background: linear-gradient(90deg, hsl(var(--h, 210) 72% var(--trace-l) / 0.04), hsl(var(--h, 210) 72% var(--trace-l) / 0.1));
+}
 .rr-run::after {
   content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 8px;
   background: repeating-conic-gradient(var(--ink) 0 25%, var(--surface) 0 50%) 0 0 / 8px 8px;
 }
-.rr-runner { position: absolute; bottom: 4px; left: calc(var(--p, 0) * (100% - 44px)); width: 36px; height: 36px; }
+.rr-mark {
+  position: absolute; top: 0; bottom: 0; left: calc(var(--m) * (100% - var(--off)) + var(--half));
+  border-left: 1px dashed var(--muted); opacity: 0.45;
+}
+/* 지나온 길: 출발선에서 동물까지 색 띠가 따라온다 */
+.rr-trail {
+  position: absolute; left: 0; bottom: 10px; height: 8px; border-radius: 0 99px 99px 0;
+  width: calc(var(--p, 0) * (100% - var(--off)) + var(--half));
+  background: linear-gradient(90deg, hsl(var(--h, 210) 72% var(--trace-l) / 0.15), hsl(var(--h, 210) 72% var(--trace-l) / 0.85));
+}
+.rr-dist {
+  position: absolute; bottom: 21px; left: calc(var(--p, 0) * (100% - var(--off)) - 2px); transform: translateX(-100%);
+  padding: 0 5px; border-radius: 99px; background: var(--surface); color: hsl(var(--h, 210) 72% var(--trace-l));
+  box-shadow: 0 0 0 1px hsl(var(--h, 210) 72% var(--trace-l) / 0.45);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; line-height: 15px; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.rr-run.warp .rr-trail { transition: width 320ms cubic-bezier(0.2, 1.2, 0.4, 1); }
+.rr-run.warp .rr-dist { transition: left 320ms cubic-bezier(0.2, 1.2, 0.4, 1); }
+.rr-ruler { padding-bottom: 4px; margin-bottom: 2px; border-bottom: 1px solid var(--line); }
+.rr-ruler-run { --off: 44px; --half: 18px; position: relative; height: 16px; }
+.rr-ruler-run b {
+  position: absolute; top: 0; left: calc(var(--m) * (100% - var(--off)) + var(--half)); transform: translateX(-50%);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--muted); white-space: nowrap;
+}
+.rr-ruler-run b.start { left: 0; transform: none; }
+.rr-ruler-run b.goal { left: auto; right: 0; transform: none; color: var(--ink); }
+.rr-runner { position: absolute; bottom: 4px; left: calc(var(--p, 0) * (100% - var(--off))); width: 36px; height: 36px; z-index: 1; }
 .rr-body { display: block; font-size: 28px; line-height: 36px; text-align: center; animation: hop var(--hop, 320ms) ease-in-out infinite alternate; }
 .rr-emoji { display: inline-block; transform: scaleX(-1); }
 .rr-runner.nap .rr-body { animation: none; transform: rotate(-14deg); opacity: 0.6; }
@@ -368,7 +402,13 @@ textarea.shuffle-flash { animation: shuffle-flash 600ms ease-out; }
 }
 .rr-runner.boost .rr-bubble { background: var(--signal); color: var(--signal-ink); }
 .rr-runner.slip .rr-bubble { background: var(--warn-bg); color: var(--warn); }
-.rr-place { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.rr-place {
+  justify-self: end; min-width: 26px; padding: 1px 6px; border-radius: 99px; text-align: center;
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.rr-place.p1 { background: var(--signal); color: var(--signal-ink); }
+.rr-place.p2, .rr-place.p3 { background: var(--slot); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.rr-place.done { color: var(--ink); font-weight: 700; }
 .rr-lane.lost .rr-place { color: var(--warn); }
 .rr-track.over .rr-body { animation: none; }
 .rr-count {
@@ -387,7 +427,7 @@ textarea.shuffle-flash { animation: shuffle-flash 600ms ease-out; }
 @keyframes hop { from { transform: translateY(0); } to { transform: translateY(-5px); } }
 .rr-runner.reverse .rr-emoji { transform: none; }
 .rr-box {
-  position: absolute; bottom: 12px; left: calc(var(--bx) * (100% - 44px) + 10px); width: 18px; height: 18px;
+  position: absolute; bottom: 12px; left: calc(var(--bx) * (100% - var(--off)) + 10px); width: 18px; height: 18px;
   display: flex; align-items: center; justify-content: center; border-radius: 4px;
   background: var(--signal); color: var(--signal-ink); font-size: 11px; font-weight: 700;
   animation: box-bob 900ms ease-in-out infinite alternate; transition: opacity 300ms, transform 300ms;
@@ -403,7 +443,9 @@ textarea.shuffle-flash { animation: shuffle-flash 600ms ease-out; }
 .board.big .rr-box { width: 24px; height: 24px; font-size: 14px; bottom: 18px; }
 .rr-runner.reverse .rr-bubble { background: var(--warn); color: var(--surface); }
 @media (max-width: 520px) {
-  .rr-lane { grid-template-columns: 58px minmax(0, 1fr) 30px; gap: 6px; }
+  .rr-lane, .rr-ruler { grid-template-columns: 58px minmax(0, 1fr) 30px; gap: 6px; }
+  .rr-name::before { display: none; }
+  .rr-ruler-run b.start, .rr-ruler-run b.goal { display: none; }
   .rr-body { font-size: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -422,16 +464,21 @@ textarea.shuffle-flash { animation: shuffle-flash 600ms ease-out; }
 .board.big .pb-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 280px); }
 .board.big .pb-canvas-wrap { max-width: min(100%, 70vh); }
 .board.big .pb-canvas-wrap canvas { height: max(360px, calc(100vh - 200px)); }
-.board.big .rr-lane { grid-template-columns: 130px minmax(0, 1fr) 56px; min-height: 78px; }
+.board.big .rr-lane, .board.big .rr-ruler { grid-template-columns: 130px minmax(0, 1fr) 56px; }
+.board.big .rr-lane { min-height: 78px; }
 .board.big .rr-name { font-size: 18px; }
 .board.big .rr-place { font-size: 16px; }
-.board.big .rr-run { height: 76px; }
-.board.big .rr-runner { width: 56px; height: 56px; left: calc(var(--p, 0) * (100% - 64px)); }
+.board.big .rr-run { height: 76px; --off: 64px; --half: 28px; }
+.board.big .rr-ruler-run { --off: 64px; --half: 28px; height: 20px; }
+.board.big .rr-ruler-run b { font-size: 13px; }
+.board.big .rr-trail { height: 12px; bottom: 14px; }
+.board.big .rr-dist { bottom: 30px; font-size: 13px; line-height: 19px; }
+.board.big .rr-runner { width: 56px; height: 56px; }
 .board.big .rr-body { font-size: 46px; line-height: 56px; }
 .board.big .rr-bubble { bottom: 52px; font-size: 13px; line-height: 20px; }
 @media (max-width: 860px) {
   .board.big .pb-stage { grid-template-columns: minmax(0, 1fr); }
-  .board.big .rr-lane { grid-template-columns: 70px minmax(0, 1fr) 36px; }
+  .board.big .rr-lane, .board.big .rr-ruler { grid-template-columns: 70px minmax(0, 1fr) 36px; }
   .board.big .rr-name { font-size: 14px; }
 }
 
@@ -656,7 +703,7 @@ footer { color: var(--muted); font-size: 12.5px; }
           <input type="text" id="rrPenalty" placeholder="커피 쏘기">
         </div>
         <label class="check" for="rrItems"><input type="checkbox" id="rrItems"> 아이템 상자 켜기</label>
-        <p class="hint">레인의 ? 상자를 지나면 아이템이 나와요. 뒤처질수록 로켓(선두 앞으로), 선두와 자리 바꾸기, 번개(앞선 동물 모두 멈춤) 같은 역전 아이템이 나옵니다. 앞서가는 동물은 방심해서 쉬거나 거꾸로 달릴 때가 많고, 뒤처진 동물은 따라잡는 힘이 세져요. 15초가 지나면 막판 스퍼트로 모두 무리 지어 달려서, 20초 안팎에 결승선 앞 접전으로 끝나요. 규칙은 누구에게나 똑같아요.</p>
+        <p class="hint">레인의 ? 상자를 지나면 아이템이 나와요. 뒤처질수록 로켓(선두 앞으로), 선두와 자리 바꾸기, 번개(앞선 동물 모두 멈춤) 같은 역전 아이템이 나옵니다. 앞서가는 동물은 방심해서 쉬거나 거꾸로 달릴 때가 많고, 뒤처진 동물은 스퍼트가 잦아요. 동물마다 그날 컨디션이 달라서 결승선까지 따라잡아 주는 장치 없이 실력과 운으로 갈리고, 72m를 지날 때 막판 스퍼트를 할지는 동물마다 따로 정해져요. 규칙은 누구에게나 똑같아요.</p>
       </div>
 
       <div class="field">
@@ -2290,11 +2337,11 @@ window.payRules = {
   const rules = window.payRules;
   const SOUND_KEY = "animal-race-sound";
   const LEN = 100;           // 트랙 길이
-  const RACE_S = 19;         // 페이스메이커가 결승선에 닿는 시간(초). 슬로 모션까지 더하면 20초 안팎
+  const RACE_S = 18;         // 사건 없이 평소 속도로만 달리면 걸리는 시간(초)
   const BASE = LEN / RACE_S; // 평소 속도(초당)
-  const SPRINT_AT = 15000;   // 이때부터 막판 스퍼트: 쉬거나 거꾸로 가지 않고, 무리 지어 결승선으로
-  const PULL = 0.3;          // 페이스메이커와 벌어진 만큼 당기는 힘(초당). 앞서면 느려지고 뒤처지면 빨라진다
-  const PULL_SPRINT = 0.75;  // 막판 스퍼트 때 당기는 힘: 다들 비슷하게 들어오도록
+  const FORM = 0.07;         // 그날 컨디션: 동물마다 평소 속도 ±7%
+  const LATE_AT = 72;        // 여기를 지날 때 막판 스퍼트를 할지 정한다
+  const LATE_P = 0.4;        // 막판 스퍼트 확률 (동물마다 따로, 따라잡게 만드는 장치 없음)
   const MAX_COUNT = 10;      // 한 사람이 넣을 수 있는 동물 수
   const ITEM_X = [30, 58, 82];   // 레인마다 놓인 아이템 상자 위치
   const STEP = 50;           // 시뮬레이션 한 스텝(ms)
@@ -2429,11 +2476,11 @@ window.payRules = {
   let phase = "ready";      // ready | count | race | over
   let simTime = 0, raceStart = 0, acc = 0, slowmo = false;
   let countLeft = 0, countTimer = 0, statusKey = "", uiTimer = 0;
-  let leaderName = "", lastLeadMsg = 0, sprintOn = false;
+  let leaderName = "", lastLeadMsg = 0;
   let countEl = null, slowEl = null;
 
   function setup() {
-    phase = "ready"; simTime = 0; raceStart = 0; acc = 0; slowmo = false; statusKey = ""; sprintOn = false;
+    phase = "ready"; simTime = 0; raceStart = 0; acc = 0; slowmo = false; statusKey = "";
     finished = []; feed = []; leaderName = ""; lastLeadMsg = 0;
     els.track.classList.remove("over", "boom");
     const entries = parseEntries(cfg.people);
@@ -2444,8 +2491,9 @@ window.payRules = {
       return;
     }
     const list = [];
-    entries.forEach((e) => {
-      for (let j = 1; j <= e.count; j++) list.push({ name: e.name, owner: e.name, own: e.count });
+    entries.forEach((e, i) => {
+      const hue = Math.round((i * 137.5 + 20) % 360);   // 사람마다 색 하나 (핀볼과 같은 색)
+      for (let j = 1; j <= e.count; j++) list.push({ name: e.name, owner: e.name, own: e.count, hue });
     });
     const n = list.length;
     race = { n, people: entries.length, ...rules.config(cfg, n), at: new Date(), losers: [], errand: null };
@@ -2454,20 +2502,26 @@ window.payRules = {
     const picks = shuffle(list.map((_, i) => pool[i % pool.length]));
     runners = list.map((p, i) => ({
       ...p, a: picks[i], x: 0, drift: 0, mood: "run", until: 0, done: false, rank: 0, lost: false,
+      form: 1 + (rand() * 2 - 1) * FORM, late: false,
       taken: new Set(), itemText: "", itemUntil: 0, warpUntil: 0
     }));
 
-    els.track.innerHTML = runners.map((r, i) => `
-      <div class="rr-lane" data-i="${i}">
+    const MARKS = [25, 50, 75];
+    const ruler = `<div class="rr-ruler" aria-hidden="true"><span></span><div class="rr-ruler-run">
+        <b class="start">START</b>${MARKS.map((m) => `<b style="--m:${m / LEN}">${m}m</b>`).join("")}<b class="goal">FINISH</b>
+      </div><span></span></div>`;
+    els.track.innerHTML = ruler + runners.map((r, i) => `
+      <div class="rr-lane" data-i="${i}" style="--h:${r.hue}">
         <span class="rr-name" title="${esc(who(r))}">${esc(r.name)}</span>
-        <div class="rr-run">${ITEM_X.map((bx) => `<span class="rr-box" style="--bx:${bx / LEN}" aria-hidden="true">?</span>`).join("")}<div class="rr-runner" style="--p:0"><span class="rr-bubble" hidden></span><span class="rr-body"><span class="rr-emoji" role="img" aria-label="${r.a.n}">${r.a.e}</span></span></div></div>
+        <div class="rr-run" style="--p:0">${MARKS.map((m) => `<i class="rr-mark" style="--m:${m / LEN}"></i>`).join("")}<span class="rr-trail"></span>${ITEM_X.map((bx) => `<span class="rr-box" style="--bx:${bx / LEN}" aria-hidden="true">?</span>`).join("")}<span class="rr-dist" hidden></span><div class="rr-runner"><span class="rr-bubble" hidden></span><span class="rr-body"><span class="rr-emoji" role="img" aria-label="${r.a.n}">${r.a.e}</span></span></div></div>
         <span class="rr-place">–</span>
       </div>`).join("") + `<div class="rr-count" hidden></div><div class="rr-slowmo" hidden>결승선 앞 · 슬로 모션</div>`;
+    const lanes = els.track.querySelectorAll(".rr-lane");
     runners.forEach((r, i) => {
-      const lane = els.track.children[i];
+      const lane = lanes[i];
       r.el = {
-        lane, runner: lane.querySelector(".rr-runner"), bubble: lane.querySelector(".rr-bubble"),
-        place: lane.querySelector(".rr-place"), boxes: lane.querySelectorAll(".rr-box")
+        lane, run: lane.querySelector(".rr-run"), runner: lane.querySelector(".rr-runner"), bubble: lane.querySelector(".rr-bubble"),
+        place: lane.querySelector(".rr-place"), boxes: lane.querySelectorAll(".rr-box"), dist: lane.querySelector(".rr-dist")
       };
     });
     countEl = els.track.querySelector(".rr-count");
@@ -2510,21 +2564,20 @@ window.payRules = {
     const live = runners.filter((r) => !r.done);
     if (!live.length) return;
     const leadX = Math.max(...live.map((r) => r.x));
-    const t = simTime - raceStart;
-    const sprint = t >= SPRINT_AT;
-    // 보이지 않는 페이스메이커: RACE_S초에 결승선. 다들 이 자리로 끌려가서 크게 벌어지지 않는다
-    const pacer = Math.min(LEN + 8, BASE * t / 1000);
-    const pull = sprint ? PULL_SPRINT : PULL;
-    if (sprint && !sprintOn) {
-      sprintOn = true;
-      live.forEach((r) => { if (r.mood === "nap" || r.mood === "reverse") r.mood = "run"; });
-      addFeed("막판 스퍼트! 다 같이 결승선으로");
-      sfx("boost");
-    }
     for (const r of live) {
-      r.drift = Math.max(-0.25, Math.min(0.25, r.drift + (rand() - 0.5) * 1.6 * dt));
+      // 페이스가 조금씩 오르내린다 (제자리로 돌아오려는 힘이 약하게 있어 한쪽으로 쏠리지 않음)
+      r.drift = Math.max(-0.3, Math.min(0.3, r.drift + (rand() - 0.5) * 1.6 * dt - r.drift * 0.3 * dt));
       if (r.mood !== "run" && simTime >= r.until) r.mood = "run";
-      if (r.mood === "run" && r.x > 3 && !sprint) {
+      if (!r.late && r.x >= LATE_AT) {
+        r.late = true;
+        if (rand() < LATE_P && r.mood !== "nap") {
+          r.mood = "boost";
+          r.until = simTime + 900 + rand() * 900;
+          addFeed(`${who(r)}, 막판 스퍼트!`);
+          sfx("boost");
+        }
+      }
+      if (r.mood === "run" && r.x > 3) {
         // 같은 규칙: 선두는 방심(낮잠·역주행)이 잦고, 뒤처질수록 스퍼트가 잦다
         const gap = Math.min(1, (leadX - r.x) / 20);
         const isLead = r.x === leadX;
@@ -2538,13 +2591,11 @@ window.payRules = {
         else if (u < pNap + pBoost + pSlip) startMood(r, "slip", 300);
         else if (u < pNap + pBoost + pSlip + pBack) startMood(r, "reverse", 500 + rand() * 400);
       }
-      // 달리는 중이면 페이스메이커와 벌어진 만큼 따라잡거나 늦춘다
-      const band = Math.max(-0.55 * BASE, Math.min(1.6 * BASE, pull * (pacer - r.x)));
       const v = r.mood === "nap" ? 0
-        : r.mood === "boost" ? BASE * 2.3 + Math.max(0, band)
+        : r.mood === "boost" ? BASE * 2.3
         : r.mood === "slip" ? -BASE * 0.9
         : r.mood === "reverse" ? -BASE * 1.3
-        : BASE * (1 + r.drift) + band;
+        : BASE * (r.form + r.drift);
       const before = r.x;
       r.x = Math.max(0, r.x + v * dt);
       if (cfg.items !== false) {
@@ -2671,12 +2722,21 @@ window.payRules = {
   function draw() {
     const live = runners.filter((r) => !r.done);
     const leadX = live.length ? Math.max(...live.map((r) => r.x)) : -1;
+    // 지금 순위: 골인한 순서 다음에 남은 동물을 앞선 순서대로
+    const order = finished.concat(live.slice().sort((a, b) => b.x - a.x));
+    const racing = phase === "race" || phase === "over";
     for (const r of runners) {
-      const { lane, runner, bubble, place } = r.el;
-      runner.style.setProperty("--p", (Math.min(LEN, r.x) / LEN).toFixed(4));
+      const { lane, run, runner, bubble, place, dist } = r.el;
+      run.style.setProperty("--p", (Math.min(LEN, r.x) / LEN).toFixed(4));
       const mood = phase === "race" && !r.done ? r.mood : "run";
       const item = phase === "race" && !r.done && simTime < r.itemUntil;
       const warp = phase === "race" && simTime < r.warpUntil;
+      run.classList.toggle("warp", warp);
+      const m = Math.floor(Math.min(LEN, r.x));
+      const showDist = racing && !r.done && m >= 4;
+      if (dist.hidden === showDist) dist.hidden = !showDist;
+      const distText = `${m}m`;
+      if (showDist && dist.textContent !== distText) dist.textContent = distText;
       const cls = `rr-runner${mood === "run" ? "" : " " + mood}${item ? " item" : ""}${warp ? " warp" : ""}`;
       if (runner.className !== cls) {
         runner.className = cls;
@@ -2686,8 +2746,11 @@ window.payRules = {
       }
       const laneCls = `rr-lane${r.lost ? " lost" : ""}${phase === "race" && !r.done && r.x === leadX ? " lead" : ""}`;
       if (lane.className !== laneCls) lane.className = laneCls;
-      const placeText = r.done ? `${r.rank}위` : (r.lost ? "꼴찌" : "–");
+      const pos = order.indexOf(r) + 1;
+      const placeText = r.done ? `${r.rank}위` : r.lost ? "꼴찌" : racing ? `${pos}` : "–";
       if (place.textContent !== placeText) place.textContent = placeText;
+      const placeCls = `rr-place${r.done ? " done" : racing && !r.lost && pos <= 3 ? " p" + pos : ""}`;
+      if (place.className !== placeCls) place.className = placeCls;
     }
   }
 
