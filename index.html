@@ -146,6 +146,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mode input { margin-top: 4px; accent-color: var(--accent); }
 .mode strong { display: block; font-weight: 500; }
 .mode small { color: var(--muted); font-size: 12.5px; }
+.map-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.map-grid .mode { padding: 8px 10px; gap: 8px; }
+.map-grid .mode.wide { grid-column: 1 / -1; }
 
 .go {
   background: var(--signal); color: var(--signal-ink); border: none;
@@ -565,7 +568,7 @@ footer { color: var(--muted); font-size: 12.5px; }
   </section>
 
   <section class="view" id="view-pinball" role="tabpanel" aria-labelledby="tab-pinball" hidden>
-  <p class="intro">참가자마다 공이 하나씩 떨어집니다. 핀, 범퍼, 회전 막대, 플리퍼를 지나 결승선까지 가는 레이스예요.</p>
+  <p class="intro">참가자마다 공이 하나씩 떨어집니다. 맵 4개 중 하나를 골라 핀, 범퍼, 회전 막대, 플리퍼를 지나 결승선까지 가는 레이스예요.</p>
   <div class="layout">
     <form class="panel" id="pbForm" autocomplete="off">
       <div class="field">
@@ -577,6 +580,17 @@ footer { color: var(--muted); font-size: 12.5px; }
         <div><button type="button" class="text-btn" id="pbImport">배차 명단 불러오기</button></div>
         <p class="hint">공을 여러 개 주려면 이름 뒤에 *숫자를 붙이거나 아래에서 조절하세요. 예: 김민수*3. 공이 많을수록 걸릴 확률도 그만큼 커져요.</p>
         <div class="pb-counts" id="pbCounts"></div>
+      </div>
+
+      <div class="field">
+        <span class="label">맵</span>
+        <div class="map-grid" id="pbMaps">
+          <label class="mode"><input type="radio" name="pbMap" value="classic"><span><strong>클래식</strong><small>핀 숲 → 범퍼 → 경사로 → 플리퍼</small></span></label>
+          <label class="mode"><input type="radio" name="pbMap" value="canyon"><span><strong>지그재그 계곡</strong><small>가파른 미끄럼틀 8개. 빠르고 시원함</small></span></label>
+          <label class="mode"><input type="radio" name="pbMap" value="bumper"><span><strong>범퍼 정글</strong><small>빽빽한 범퍼와 움직이는 발판</small></span></label>
+          <label class="mode"><input type="radio" name="pbMap" value="factory"><span><strong>회전 공장</strong><small>톱니 막대와 플리퍼 계단</small></span></label>
+          <label class="mode wide"><input type="radio" name="pbMap" value="random"><span><strong>매판 랜덤</strong><small>판마다 직전과 다른 맵이 무작위로 나와요.</small></span></label>
+        </div>
       </div>
 
       <div class="field">
@@ -1386,10 +1400,134 @@ window.payRules = {
   }
   const { Engine, Bodies, Body, Composite, Events } = window.Matter;
 
+  /* ---------- 맵 ----------
+     모든 맵은 폭·결승선·마지막 회전 막대와 미끄럼틀이 같고, 그 위(160~2340)만 다르다.
+     drops: 순간이동해도 안전한 빈자리(위에서 아래 순서) */
+  const MAPS = {
+    classic: {
+      name: "클래식", desc: "핀 숲 → 범퍼 → 지그재그 경사로 → 플리퍼",
+      drops: [[180, 160], [60, 900], [300, 900], [300, 1340], [180, 1930], [180, 2280]],
+      build(k) {
+        // 1구간: 핀 숲
+        for (let r = 0, y = 190; y <= 650; r++, y += 44) {
+          const odd = r % 2 === 1;
+          for (let x = odd ? 60 : 40; x <= (odd ? 300 : 320); x += 40) k.peg(x, y);
+        }
+        // 깔때기 + 십자 회전 막대
+        k.wall(0, 678, 148, 780);
+        k.wall(W, 678, 212, 780);
+        k.spinner(180, 835, 110, 2.4, true);
+        // 2구간: 범퍼
+        [[80, 960, 22], [280, 960, 22], [180, 1060, 24], [75, 1180, 20], [285, 1180, 20], [180, 1290, 22]]
+          .forEach(([x, y, r]) => k.bumper(x, y, r));
+        [[130, 1000], [230, 1000], [125, 1120], [235, 1120], [180, 1170], [130, 1240], [230, 1240]]
+          .forEach(([x, y]) => k.peg(x, y));
+        // 3구간: 지그재그 경사로
+        k.wall(0, 1370, 255, 1470);
+        k.wall(W, 1490, 105, 1590);
+        k.wall(0, 1610, 255, 1710);
+        k.wall(W, 1730, 105, 1830);
+        k.peg(310, 1474); k.peg(50, 1596); k.peg(310, 1714);
+        k.spinner(52, 1870, 70, 3, false);
+        // 4구간: 플리퍼
+        k.flipper(2, 1960, 120, 0.45, -0.6, 0.9, 0);
+        k.flipper(358, 2060, 120, Math.PI - 0.45, 0.6, 1.1, 1);
+        k.flipper(2, 2170, 120, 0.45, -0.6, 1.3, 2);
+        k.flipper(358, 2270, 120, Math.PI - 0.45, 0.6, 1.0, 0.5);
+        k.bumper(180, 1990, 18);
+        k.bumper(180, 2200, 18);
+        [[150, 2110], [210, 2110], [140, 2300], [220, 2300]].forEach(([x, y]) => k.peg(x, y));
+        [[180, 790], [120, 1335], [240, 1335], [60, 1915], [180, 2290]].forEach(([x, y]) => k.item(x, y));
+      }
+    },
+    canyon: {
+      name: "지그재그 계곡", desc: "가파른 미끄럼틀 8개와 회전 막대 터널. 빠르고 시원함",
+      drops: [[180, 160], [180, 350], [200, 1180], [180, 1520], [200, 1985], [300, 2330]],
+      build(k) {
+        for (let r = 0, y = 190; y <= 325; r++, y += 45) {
+          const odd = r % 2 === 1;
+          for (let x = odd ? 62 : 40; x <= 320; x += 45) k.peg(x, y);
+        }
+        // 미끄럼틀 4개 → 회전 막대 터널 → 미끄럼틀 4개. 떨어지는 자리마다 핀이 하나씩
+        const ramps = (y0) => {
+          k.wall(W, y0, 90, y0 + 140);       k.peg(60, y0 + 180);
+          k.wall(0, y0 + 200, 270, y0 + 340); k.peg(300, y0 + 380);
+          k.wall(W, y0 + 400, 90, y0 + 540);  k.peg(60, y0 + 580);
+          k.wall(0, y0 + 600, 270, y0 + 740);
+        };
+        ramps(380);
+        k.spinner(90, 1230, 100, 2.6, false);
+        k.spinner(270, 1230, 100, -2.6, false);
+        k.spinner(180, 1340, 120, 2.2, true);
+        k.spinner(90, 1450, 100, -3, false);
+        k.spinner(270, 1450, 100, 3, false);
+        ramps(1540);
+        [[135, 632], [180, 1185], [225, 1840], [180, 2310]].forEach(([x, y]) => k.item(x, y));
+      }
+    },
+    bumper: {
+      name: "범퍼 정글", desc: "빽빽한 핀과 범퍼, 좌우로 움직이는 발판. 혼돈의 난타전",
+      drops: [[180, 160], [125, 650], [180, 1310], [300, 1700], [250, 1950], [300, 2310]],
+      build(k) {
+        for (let r = 0, y = 180; y <= 600; r++, y += 38) {
+          const odd = r % 2 === 1;
+          for (let x = odd ? 54 : 36; x <= 324; x += 36) k.peg(x, y);
+        }
+        for (let r = 0, y = 700; y <= 1250; r++, y += 110) {
+          (r % 2 === 0 ? [70, 180, 290] : [125, 235]).forEach((x) => k.bumper(x, y, 19));
+        }
+        k.slider(180, 1370, 130, 80, 0.35, 0, 0.12);
+        k.slider(180, 1490, 130, 80, 0.42, 1.6, -0.12);
+        k.slider(180, 1610, 130, 80, 0.3, 3.1, 0.12);
+        k.wall(0, 1720, 135, 1830);
+        k.wall(W, 1720, 225, 1830);
+        k.bumper(180, 1900, 20);
+        k.flipper(2, 2000, 115, 0.4, -0.6, 1.2, 0);
+        k.flipper(358, 2110, 115, Math.PI - 0.4, 0.6, 1.0, 1);
+        [[180, 2060], [130, 2230], [230, 2230], [90, 2290], [270, 2290]].forEach(([x, y]) => k.peg(x, y));
+        [[180, 650], [180, 1310], [60, 1745], [180, 2150]].forEach(([x, y]) => k.item(x, y));
+      }
+    },
+    factory: {
+      name: "회전 공장", desc: "톱니처럼 도는 막대와 플리퍼 계단, 톱니 탑. 끼고 튕기는 맛",
+      drops: [[180, 160], [230, 790], [200, 1180], [200, 1560], [190, 1760], [300, 2310]],
+      build(k) {
+        for (let r = 0, y = 190; y <= 370; r++, y += 45) {
+          const odd = r % 2 === 1;
+          for (let x = odd ? 60 : 40; x <= (odd ? 300 : 320); x += 40) k.peg(x, y);
+        }
+        [[70, -2.6], [180, 2.6], [290, -2.6]].forEach(([x, s]) => k.spinner(x, 465, 76, s, true));
+        k.wall(0, 545, 130, 630);
+        k.wall(W, 545, 230, 630);
+        k.spinner(180, 700, 96, -2.2, true);
+        k.flipper(2, 800, 120, 0.4, -0.6, 1.1, 0);
+        k.flipper(358, 900, 120, Math.PI - 0.4, 0.6, 0.9, 2);
+        k.flipper(2, 1000, 120, 0.4, -0.6, 1.3, 1);
+        k.flipper(358, 1100, 120, Math.PI - 0.4, 0.6, 1.0, 0.5);
+        k.bumper(180, 870, 16);
+        k.bumper(180, 1060, 16);
+        k.peg(140, 965); k.peg(220, 965);
+        // 경사로 끝마다 회전 막대
+        k.wall(0, 1200, 240, 1290); k.spinner(296, 1320, 76, 3, false);
+        k.wall(W, 1400, 120, 1490); k.spinner(64, 1520, 76, -3, false);
+        k.wall(0, 1600, 240, 1690); k.spinner(296, 1720, 76, 3, false);
+        // 톱니 탑
+        [[110, 1810, 2.4], [250, 1920, -2.4], [110, 2030, 2.4], [250, 2140, -2.4]]
+          .forEach(([x, y, s]) => k.spinner(x, y, 88, s, true));
+        [[290, 1830], [70, 1940], [290, 2050], [70, 2160]].forEach(([x, y]) => k.peg(x, y));
+        k.bumper(80, 2250, 16); k.bumper(280, 2250, 16);
+        [[180, 405], [180, 790], [170, 1160], [150, 1640], [180, 2215]].forEach(([x, y]) => k.item(x, y));
+      }
+    }
+  };
+  const MAP_IDS = Object.keys(MAPS);
+  let mapId = "classic";
+  let DROPS = MAPS.classic.drops;
+
   /* ---------- 코스 ---------- */
-  function buildCourse(world) {
+  function buildCourse(world, map) {
     const S = { isStatic: true, restitution: 0.35, friction: 0.01 };
-    const c = { walls: [], pegs: [], bumpers: [], movers: [], spinners: [], flippers: [], items: [], gate: null };
+    const c = { walls: [], pegs: [], bumpers: [], movers: [], spinners: [], flippers: [], sliders: [], items: [], gate: null };
     const add = (b, list) => { Composite.add(world, b); list.push(b); return b; };
     const wall = (x1, y1, x2, y2, t = 8) => add(Bodies.rectangle((x1 + x2) / 2, (y1 + y2) / 2, Math.hypot(x2 - x1, y2 - y1), t,
       { ...S, angle: Math.atan2(y2 - y1, x2 - x1) }), c.walls);
@@ -1418,54 +1556,39 @@ window.payRules = {
       Bodies.rectangle(W + 20, FLOOR_Y / 2, 40, FLOOR_Y * 2 + 600, S),
       Bodies.rectangle(W / 2, FLOOR_Y, W, 20, S)
     ]);
-    c.gate = add(Bodies.rectangle(W / 2, 136, W, 10, S), c.walls);
-
-    // 1구간: 핀 숲
-    for (let r = 0, y = 190; y <= 650; r++, y += 44) {
-      const odd = r % 2 === 1;
-      for (let x = odd ? 60 : 40; x <= (odd ? 300 : 320); x += 40) peg(x, y);
-    }
-    // 깔때기 + 십자 회전 막대
-    wall(0, 678, 148, 780);
-    wall(W, 678, 212, 780);
-    spinner(180, 835, 110, 2.4, true);
-
-    // 2구간: 범퍼
-    [[80, 960, 22], [280, 960, 22], [180, 1060, 24], [75, 1180, 20], [285, 1180, 20], [180, 1290, 22]]
-      .forEach(([x, y, r]) => bumper(x, y, r));
-    [[130, 1000], [230, 1000], [125, 1120], [235, 1120], [180, 1170], [130, 1240], [230, 1240]]
-      .forEach(([x, y]) => peg(x, y));
-
-    // 3구간: 지그재그 경사로
-    wall(0, 1370, 255, 1470);
-    wall(W, 1490, 105, 1590);
-    wall(0, 1610, 255, 1710);
-    wall(W, 1730, 105, 1830);
-    peg(310, 1474); peg(50, 1596); peg(310, 1714);
-    spinner(52, 1870, 70, 3, false);
-
-    // 4구간: 플리퍼
-    flipper(2, 1960, 120, 0.45, -0.6, 0.9, 0);
-    flipper(358, 2060, 120, Math.PI - 0.45, 0.6, 1.1, 1);
-    flipper(2, 2170, 120, 0.45, -0.6, 1.3, 2);
-    flipper(358, 2270, 120, Math.PI - 0.45, 0.6, 1.0, 0.5);
-    bumper(180, 1990, 18);
-    bumper(180, 2200, 18);
-    [[150, 2110], [210, 2110], [140, 2300], [220, 2300]].forEach(([x, y]) => peg(x, y));
-
-    // 마지막: 회전 막대 + 좁은 출구
-    spinner(180, 2375, 90, 2.8, false);
-    wall(0, 2398, 144, 2496);
-    wall(W, 2398, 216, 2496);
-
+    // 좌우로 오가는 발판 (살짝 기울어 있어 공이 굴러 떨어진다)
+    const slider = (cx, y, len, amp, freq, phase, angle) => {
+      const b = Bodies.rectangle(cx, y, len, 10, { ...S, restitution: 0.4, angle });
+      Composite.add(world, b);
+      c.movers.push(b);
+      const s = { body: b, cx, y, amp, freq, phase };
+      c.sliders.push(s);
+      placeSlider(s, 0);
+    };
     // 아이템 상자: 지나가기만 하면 발동하는 센서
-    [[180, 790], [120, 1335], [240, 1335], [60, 1915], [180, 2290]].forEach(([x, y]) => {
+    const item = (x, y) => {
       const b = Bodies.circle(x, y, 14, { isStatic: true, isSensor: true, label: "item" });
       b.flash = 0;
       Composite.add(world, b);
       c.items.push(b);
-    });
+    };
+    c.gate = add(Bodies.rectangle(W / 2, 136, W, 10, S), c.walls);
+
+    map.build({ wall, peg, bumper, spinner, flipper, slider, item });
+
+    // 마지막 (모든 맵 공통): 회전 막대 + 미끄럼틀 + 좁은 출구
+    spinner(180, 2375, 90, 2.8, false);
+    wall(0, 2398, 144, 2496);
+    wall(W, 2398, 216, 2496);
     return c;
+  }
+
+  function placeSlider(s, t) {
+    const b = s.body;
+    const x = s.cx + s.amp * Math.sin(2 * Math.PI * s.freq * t + s.phase);
+    const dx = x - b.position.x;
+    Body.setPosition(b, { x, y: s.y });
+    Body.setVelocity(b, { x: dx, y: 0 });
   }
 
   function placeFlipper(f, t) {
@@ -1493,13 +1616,18 @@ window.payRules = {
   let nextTwist = Infinity, effects = [], banner = null, feed = [];
   let manualUntil = 0, drag = null;   // 사용자가 직접 화면을 움직이는 중이면 자동 따라가기를 멈춘다
   let itemQueue = [];
-  // 순간이동해도 안전한 빈자리(각 구간 입구)
-  const DROPS = [[180, 160], [60, 900], [300, 900], [300, 1340], [180, 1930], [180, 2280]];
 
   function setup() {
     engine = Engine.create({ positionIterations: 8, velocityIterations: 8 });
     engine.gravity.y = GRAVITY;
-    course = buildCourse(engine.world);
+    // 맵 고르기: "random"이면 판마다 새로 뽑는다 (직전 맵은 피해서)
+    const want = cfg.map in MAPS ? cfg.map : cfg.map === "random" ? "random" : "classic";
+    if (want === "random") {
+      const pool = MAP_IDS.filter((id) => id !== mapId);
+      mapId = pool[randInt(pool.length)];
+    } else mapId = want;
+    DROPS = MAPS[mapId].drops;
+    course = buildCourse(engine.world, MAPS[mapId]);
     Events.on(engine, "collisionStart", onCollide);
     balls = []; finished = [];
     phase = "ready"; simTime = 0; acc = 0; camY = 0; slowmo = false; timeScale = 1; slowHold = 0; statusKey = "";
@@ -1570,6 +1698,7 @@ window.payRules = {
       Body.setAngularVelocity(s.body, da);
     }
     for (const f of course.flippers) placeFlipper(f, t);
+    for (const s of course.sliders) placeSlider(s, t);
     for (const b of course.bumpers) b.flash = Math.max(0, b.flash - dt / 300);
     for (const b of course.items) b.flash = Math.max(0, b.flash - dt / 500);
     if (phase === "race" && simTime - raceStart > 150000) engine.gravity.y = GRAVITY * 1.8;
@@ -2058,7 +2187,7 @@ window.payRules = {
     const eg = rules.errandGoal(cfg, "공 여러 개");
     const goal = rules.goal(race, penalty()) + (eg ? ` · ${eg}` : "");
     const deciding = rules.deciding(race, finished.length);
-    const key = [phase, countLeft, finished.length, deciding, goal].join("|");
+    const key = [phase, countLeft, finished.length, deciding, goal, mapId].join("|");
     if (key === statusKey) return;
     statusKey = key;
     if (phase === "over") {
@@ -2069,8 +2198,8 @@ window.payRules = {
         <button type="button" data-act="again">한 판 더</button>`;
       return;
     }
-    let lead = "준비 완료", big = "출발을 누르세요";
-    if (phase === "count") { lead = "곧 문이 열립니다"; big = String(countLeft); }
+    let lead = `준비 완료 · 맵 ${MAPS[mapId].name}`, big = "출발을 누르세요";
+    if (phase === "count") { lead = `곧 문이 열립니다 · 맵 ${MAPS[mapId].name}`; big = String(countLeft); }
     if (phase === "race") {
       lead = deciding ? rules.decidingText(race, finished.length, penalty()) : "레이스 중";
       big = `결승 ${finished.length}/${race.n}`;
@@ -2155,6 +2284,7 @@ window.payRules = {
           balls.forEach((b) => { b.bestAt = simTime; b.best = b.body.position.y; });
           beep(true);
           renderAll();
+          announce(`출발! 맵: ${MAPS[mapId].name}`);
         }
       }
     }
@@ -2247,6 +2377,14 @@ window.payRules = {
 
   els.twists.checked = cfg.twists !== false;
   els.twists.addEventListener("change", () => { cfg.twists = els.twists.checked; save(); });
+
+  // 맵 고르기
+  const mapRadios = document.querySelectorAll('input[name="pbMap"]');
+  const savedMap = cfg.map in MAPS || cfg.map === "random" ? cfg.map : "classic";
+  mapRadios.forEach((r) => {
+    r.checked = r.value === savedMap;
+    r.addEventListener("change", () => { cfg.map = r.value; save(); if (idle()) setup(); });
+  });
 
   // 사러 가는 사람
   function renderErrand() {
@@ -2561,7 +2699,8 @@ window.payRules = {
 
   function step(dt) {
     simTime += dt * 1000;
-    const live = runners.filter((r) => !r.done);
+    // 레인 순서가 결과에 끼어들지 않게 매 스텝 처리 순서를 섞는다
+    const live = shuffle(runners.filter((r) => !r.done));
     if (!live.length) return;
     const leadX = Math.max(...live.map((r) => r.x));
     for (const r of live) {
@@ -2608,8 +2747,10 @@ window.payRules = {
           return true;
         });
       }
-      if (r.x >= LEN) { finish(r); if (phase === "over") return; }
     }
+    // 같은 순간 여러 마리가 결승선을 넘으면 더 멀리 넘어간(더 빨리 닿은) 동물이 먼저
+    const crossed = live.filter((r) => r.x >= LEN).sort((a, b) => b.x - a.x);
+    for (const r of crossed) { finish(r); if (phase === "over") return; }
     const lead = runners.filter((r) => !r.done).sort((a, b) => b.x - a.x)[0];
     if (lead && lead.name !== leaderName && finished.length === 0) {
       if (leaderName && simTime - lastLeadMsg > 2500) { addFeed(`선두 교체! ${who(lead)}`); lastLeadMsg = simTime; }
