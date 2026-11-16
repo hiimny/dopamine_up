@@ -1437,6 +1437,11 @@ window.payRules = {
         k.bumper(180, 1990, 18);
         k.bumper(180, 2200, 18);
         [[150, 2110], [210, 2110], [140, 2300], [220, 2300]].forEach(([x, y]) => k.peg(x, y));
+        // 양쪽 벽 혹: 핀 숲은 홀수 줄마다, 범퍼 구간은 150 간격 (벽 타고 곧장 떨어지지 않게)
+        k.nubs([234, 322, 410, 498, 586]);
+        k.nubs([860, 1160]);
+        k.nubs([1010, 1310], 24);   // 크기를 번갈아 줘서 혹 옆을 스치며 계속 떨어지지 않게
+        k.nub("R", 1420);
         [[180, 790], [120, 1335], [240, 1335], [60, 1915], [180, 2290]].forEach(([x, y]) => k.item(x, y));
       }
     },
@@ -1462,6 +1467,11 @@ window.payRules = {
         k.spinner(90, 1450, 100, -3, false);
         k.spinner(270, 1450, 100, 3, false);
         ramps(1540);
+        // 벽 타고 곧장 떨어지는 길 막기: 벽 혹 + 첫 미끄럼틀을 건너뛰지 못하게 왼쪽 벽에 작은 받침
+        k.nubs([235]);
+        k.wall(0, 340, 70, 385);
+        k.nub("R", 1160); k.nubs([1340]);
+        k.wall(0, 1500, 70, 1545);
         [[135, 632], [180, 1185], [225, 1840], [180, 2310]].forEach(([x, y]) => k.item(x, y));
       }
     },
@@ -1475,7 +1485,15 @@ window.payRules = {
         }
         for (let r = 0, y = 700; y <= 1250; r++, y += 110) {
           (r % 2 === 0 ? [70, 180, 290] : [125, 235]).forEach((x) => k.bumper(x, y, 19));
+          // 벽 쪽 빈 길 막기: 범퍼 두 개짜리 줄은 벽에 반쪽 범퍼, 세 개짜리 줄은 작은 혹
+          if (r % 2 === 1) { k.bumper(0, y, 22); k.bumper(W, y, 22); }
+          else k.nubs([y], 16);
         }
+        k.nubs([218, 294, 370, 446, 522, 598], 18);   // 핀 숲 홀수 줄
+        k.nubs([1430, 1670], 18);                     // 발판 줄 사이 (가운데는 조금 크게)
+        k.nubs([1550], 24);
+        k.nub("L", 2140); k.nub("L", 2270);
+        k.nub("R", 1960); k.nub("R", 2250);
         k.slider(180, 1370, 130, 80, 0.35, 0, 0.12);
         k.slider(180, 1490, 130, 80, 0.42, 1.6, -0.12);
         k.slider(180, 1610, 130, 80, 0.3, 3.1, 0.12);
@@ -1516,6 +1534,11 @@ window.payRules = {
           .forEach(([x, y, s]) => k.spinner(x, y, 88, s, true));
         [[290, 1830], [70, 1940], [290, 2050], [70, 2160]].forEach(([x, y]) => k.peg(x, y));
         k.bumper(80, 2250, 16); k.bumper(280, 2250, 16);
+        // 벽 혹: 핀 줄과 회전 막대 옆, 톱니 탑 양옆 (벽 타고 곧장 떨어지지 않게)
+        k.nubs([235, 325, 405]);
+        k.nub("R", 1230);
+        [1720, 1875, 2030, 2185, 2320].forEach((y) => k.nub("L", y));
+        [1785, 1940, 2095, 2250].forEach((y) => k.nub("R", y));
         [[180, 405], [180, 790], [170, 1160], [150, 1640], [180, 2215]].forEach(([x, y]) => k.item(x, y));
       }
     }
@@ -1572,9 +1595,13 @@ window.payRules = {
       Composite.add(world, b);
       c.items.push(b);
     };
+    // 벽 혹: 벽에 붙은 반원. 벽을 타고 곧장 떨어지는 공을 안쪽으로 밀어낸다.
+    // 중심이 벽 위에 있어서 공이 벽과 혹 사이에 끼지 않는다
+    const nub = (side, y, r = 20) => peg(side === "L" ? 0 : W, y, r);
+    const nubs = (ys, r) => ys.forEach((y) => { nub("L", y, r); nub("R", y, r); });
     c.gate = add(Bodies.rectangle(W / 2, 136, W, 10, S), c.walls);
 
-    map.build({ wall, peg, bumper, spinner, flipper, slider, item });
+    map.build({ wall, peg, bumper, spinner, flipper, slider, item, nub, nubs });
 
     // 마지막 (모든 맵 공통): 회전 막대 + 미끄럼틀 + 좁은 출구
     spinner(180, 2375, 90, 2.8, false);
@@ -2093,7 +2120,7 @@ window.payRules = {
       fillParts(b);
     }
     ctx.globalAlpha = 0.6;
-    for (const p of course.pegs) ctx.fillRect(p.position.x - 6, p.position.y - 6, 12, 12);
+    for (const p of course.pegs) { const r = Math.max(6, p.circleRadius); ctx.fillRect(p.position.x - r, p.position.y - r, r * 2, r * 2); }
     ctx.globalAlpha = 1;
     ctx.fillStyle = col.accent;
     for (const b of course.movers) fillParts(b);
