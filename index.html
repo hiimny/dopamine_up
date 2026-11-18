@@ -568,7 +568,7 @@ footer { color: var(--muted); font-size: 12.5px; }
   </section>
 
   <section class="view" id="view-pinball" role="tabpanel" aria-labelledby="tab-pinball" hidden>
-  <p class="intro">참가자마다 공이 하나씩 떨어집니다. 맵 4개 중 하나를 골라 핀, 범퍼, 회전 막대, 플리퍼를 지나 결승선까지 가는 레이스예요.</p>
+  <p class="intro">참가자마다 공이 하나씩 떨어집니다. 맵 7개 중 하나를 골라 핀, 범퍼, 회전 막대, 플리퍼를 지나 결승선까지 가는 레이스예요.</p>
   <div class="layout">
     <form class="panel" id="pbForm" autocomplete="off">
       <div class="field">
@@ -589,7 +589,10 @@ footer { color: var(--muted); font-size: 12.5px; }
           <label class="mode"><input type="radio" name="pbMap" value="canyon"><span><strong>지그재그 계곡</strong><small>가파른 미끄럼틀 8개. 빠르고 시원함</small></span></label>
           <label class="mode"><input type="radio" name="pbMap" value="bumper"><span><strong>범퍼 정글</strong><small>빽빽한 범퍼와 움직이는 발판</small></span></label>
           <label class="mode"><input type="radio" name="pbMap" value="factory"><span><strong>회전 공장</strong><small>톱니 막대와 플리퍼 계단</small></span></label>
-          <label class="mode wide"><input type="radio" name="pbMap" value="random"><span><strong>매판 랜덤</strong><small>판마다 직전과 다른 맵이 무작위로 나와요.</small></span></label>
+          <label class="mode"><input type="radio" name="pbMap" value="fork"><span><strong>갈림길</strong><small>미끄럼틀 길이냐 범퍼 길이냐</small></span></label>
+          <label class="mode"><input type="radio" name="pbMap" value="funnel"><span><strong>깔때기 폭포</strong><small>좁은 구멍 다섯 개를 차례로 통과</small></span></label>
+          <label class="mode"><input type="radio" name="pbMap" value="windmill"><span><strong>풍차 언덕</strong><small>화면을 가로지르는 거대한 풍차</small></span></label>
+          <label class="mode"><input type="radio" name="pbMap" value="random"><span><strong>매판 랜덤</strong><small>판마다 다른 맵이 무작위로</small></span></label>
         </div>
       </div>
 
@@ -1150,17 +1153,20 @@ footer { color: var(--muted); font-size: 12.5px; }
 
 // 결과 확정 축하: 양옆에서 터지는 색종이
 window.celebrate = (() => {
-  let cv = null, ctx = null, parts = [], raf = 0;
-  function tick() {
+  let cv = null, ctx = null, parts = [], raf = 0, lastT = 0;
+  function tick(now) {
     const w = window.innerWidth, h = window.innerHeight;
+    // 60Hz 기준으로 몇 프레임만큼 시간이 흘렀는지. 주사율이 달라도 같은 빠르기로 떨어진다
+    const k = lastT ? Math.max(0, Math.min(3, (now - lastT) / 16.667)) : 1;
+    lastT = now;
     ctx.clearRect(0, 0, w, h);
     for (const p of parts) {
-      p.vy += 0.25;
-      p.vx *= 0.99;
-      p.x += p.vx;
-      p.y += p.vy;
-      p.rot += p.vr;
-      p.life++;
+      p.vy += 0.25 * k;
+      p.vx *= Math.pow(0.99, k);
+      p.x += p.vx * k;
+      p.y += p.vy * k;
+      p.rot += p.vr * k;
+      p.life += k;
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
@@ -1170,7 +1176,7 @@ window.celebrate = (() => {
     }
     parts = parts.filter((p) => p.y < h + 40 && p.life < 360);
     if (parts.length) raf = requestAnimationFrame(tick);
-    else { raf = 0; ctx.clearRect(0, 0, w, h); }
+    else { raf = 0; lastT = 0; ctx.clearRect(0, 0, w, h); }
   }
   return function celebrate() {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -1541,9 +1547,133 @@ window.payRules = {
         [1785, 1940, 2095, 2250].forEach((y) => k.nub("R", y));
         [[180, 405], [180, 790], [170, 1160], [150, 1640], [180, 2215]].forEach(([x, y]) => k.item(x, y));
       }
+    },
+    fork: {
+      name: "갈림길", desc: "가운데 벽으로 길이 둘로. 한쪽은 미끄럼틀 길, 한쪽은 범퍼 길",
+      drops: [[180, 160], [90, 370], [270, 370], [60, 850], [272, 860], [110, 1330], [270, 1530], [90, 1580], [270, 1815], [88, 1870], [300, 2330]],
+      build(k) {
+        for (let r = 0, y = 190; y <= 280; r++, y += 45) {
+          const odd = r % 2 === 1;
+          for (let x = odd ? 60 : 40; x <= (odd ? 300 : 320); x += 40) k.peg(x, y);
+        }
+        k.nubs([235]);
+        // 범퍼 길 한 구간: 가운데 범퍼 줄과, 양옆 혹 + 핀 줄이 번갈아 나온다. cx = 길 가운데, wall = 바깥 벽 쪽, inner = 가운데 벽 쪽 혹의 중심
+        const bumperLane = (cx, side, inner, y0, rows) => {
+          for (let i = 0; i < rows; i++) {
+            const y = y0 + i * 160;
+            k.bumper(cx, y, 18);
+            // 혹 크기를 줄마다 번갈아 준다 (같은 크기면 공이 혹 옆을 스치며 벽만 타고 내려간다)
+            k.nub(side, y + 80, i % 2 ? 26 : 20);
+            k.peg(inner, y + 80, i % 2 ? 18 : 14);
+            k.peg(cx - 32, y + 80); k.peg(cx + 32, y + 80);
+          }
+        };
+        // 1차 갈림길: 왼쪽 미끄럼틀 8개, 오른쪽 범퍼
+        k.bumper(180, 328, 14);
+        k.wall(180, 336, 180, 1330);
+        for (let i = 0; i < 4; i++) {
+          k.wall(0, 400 + i * 240, 120, 460 + i * 240);
+          k.wall(176, 520 + i * 240, 56, 580 + i * 240);
+        }
+        bumperLane(272, "R", 188, 440, 6);
+        k.nub("R", 380);
+        // 합류: 십자 회전 막대
+        k.spinner(180, 1420, 110, 2.4, true);
+        [[70, 1400], [290, 1400], [110, 1490], [250, 1490]].forEach(([x, y]) => k.peg(x, y));
+        k.nubs([1440], 26);
+        // 2차 갈림길: 이번엔 왼쪽이 범퍼, 오른쪽이 미끄럼틀 5개
+        k.bumper(180, 1548, 14);
+        k.wall(180, 1556, 180, 2230);
+        k.nub("L", 1560);
+        bumperLane(88, "L", 172, 1640, 4);
+        k.wall(W, 1600, 240, 1660);
+        k.wall(184, 1720, 304, 1780);
+        k.wall(W, 1840, 240, 1900);
+        k.wall(184, 1960, 304, 2020);
+        k.wall(W, 2080, 240, 2140);
+        k.nub("R", 2200); k.nubs([2310]);
+        k.peg(120, 2290); k.peg(240, 2290);
+        [[88, 668], [272, 680], [180, 1510], [300, 1854], [88, 2040]].forEach(([x, y]) => k.item(x, y));
+      }
+    },
+    funnel: {
+      name: "깔때기 폭포", desc: "좁은 구멍 다섯 개를 차례로 통과. 줄 서다가 순위가 뒤집힘",
+      drops: [[180, 160], [120, 330], [180, 575], [250, 730], [230, 950], [100, 1330], [180, 1520], [90, 1960], [300, 2330]],
+      build(k) {
+        const pegRows = (ys) => ys.forEach((y, r) => {
+          const odd = r % 2 === 1;
+          for (let x = odd ? 60 : 40; x <= (odd ? 300 : 320); x += 40) k.peg(x, y);
+        });
+        pegRows([190, 235, 280]);
+        k.nubs([235]);
+        // 1번: 가운데 구멍 + 십자 회전 막대
+        k.wall(0, 340, 140, 440);
+        k.wall(W, 340, 220, 440);
+        k.spinner(180, 510, 90, 2.6, true);
+        pegRows([600, 645, 690]);
+        k.nubs([645]);
+        // 2번: 왼쪽 구멍
+        k.wall(W, 750, 90, 880);
+        k.nub("L", 790); k.nub("L", 880, 16);
+        k.spinner(64, 960, 76, -3, false);
+        k.nub("L", 1035, 26);
+        k.bumper(180, 1000, 20); k.bumper(290, 1060, 18); k.peg(120, 1080);
+        k.nub("R", 880); k.nub("R", 1040); k.nub("R", 1190);
+        // 3번: 오른쪽 구멍
+        k.wall(0, 1150, 270, 1280);
+        k.spinner(296, 1360, 76, 3, false);
+        k.nub("R", 1435, 26);
+        k.bumper(180, 1400, 20); k.bumper(80, 1460, 18); k.peg(250, 1480);
+        k.nub("L", 1300); k.nub("L", 1440);
+        // 4번: 가운데 좁은 구멍 + 바로 아래 범퍼, 플리퍼
+        k.wall(0, 1560, 144, 1670);
+        k.wall(W, 1560, 216, 1670);
+        k.bumper(180, 1745, 20);
+        k.nubs([1690]); k.nub("R", 1800);
+        k.flipper(2, 1800, 115, 0.4, -0.6, 1.1, 0);
+        k.flipper(358, 1900, 115, Math.PI - 0.4, 0.6, 0.9, 1.5);
+        k.nub("L", 1930);
+        // 5번: 지붕. 구멍이 양쪽 벽 옆에 하나씩
+        k.wall(180, 2000, 60, 2090);
+        k.wall(180, 2000, 300, 2090);
+        k.nubs([2050, 2290]); k.nubs([2170], 26);   // 가운데 혹은 크게: 구멍으로 나온 공이 벽만 타고 내려가지 않게
+        [[120, 2190], [240, 2190], [180, 2150], [180, 2250]].forEach(([x, y]) => k.peg(x, y));
+        [[180, 400], [45, 905], [315, 1300], [180, 1695], [180, 2200]].forEach(([x, y]) => k.item(x, y));
+      }
+    },
+    windmill: {
+      name: "풍차 언덕", desc: "화면을 가로지르는 거대한 풍차 날개 넷. 날개에 실려 가거나 튕겨 나감",
+      drops: [[180, 160], [130, 740], [240, 1075], [180, 1545], [145, 1750], [130, 2130], [300, 2330]],
+      build(k) {
+        for (let r = 0, y = 190; y <= 280; r++, y += 45) {
+          const odd = r % 2 === 1;
+          for (let x = odd ? 60 : 40; x <= (odd ? 300 : 320); x += 40) k.peg(x, y);
+        }
+        k.nubs([235]);
+        // 큰 풍차: 날개 길이 260(반지름 130). 양옆 벽에는 날개 끝과 겹치지 않는 높이에 혹
+        const mill = (y, speed) => { k.spinner(180, y, 260, speed, true); k.nubs([y - 70]); k.nubs([y + 70], 28); };
+        mill(470, 1.3);
+        k.bumper(90, 685, 18); k.bumper(270, 685, 18); k.peg(180, 650);
+        k.nubs([685]);
+        mill(900, -1.3);
+        k.wall(0, 1080, 110, 1150);
+        k.wall(W, 1080, 250, 1150);
+        k.bumper(180, 1190, 18);
+        mill(1380, 1.5);
+        // 쌍둥이 풍차
+        k.spinner(95, 1650, 140, -2, true);
+        k.spinner(265, 1650, 140, 2, true);
+        k.nubs([1560]); k.nubs([1740], 26);
+        [40, 110, 180, 250, 320].forEach((x) => k.peg(x, 1790));
+        mill(1960, -1.2);
+        k.bumper(100, 2180, 18); k.bumper(260, 2180, 18); k.peg(180, 2230);
+        k.nubs([2140]); k.nubs([2280], 26);
+        [[180, 315], [180, 700], [180, 1110], [60, 1545], [180, 2120]].forEach(([x, y]) => k.item(x, y));
+      }
     }
   };
   const MAP_IDS = Object.keys(MAPS);
+  let lastWant = null, mapPlayed = false;   // 직전에 고른 맵 설정, 지금 맵으로 이미 한 판 했는지
   let mapId = "classic";
   let DROPS = MAPS.classic.drops;
 
@@ -1610,17 +1740,18 @@ window.payRules = {
     return c;
   }
 
+  const sliderX = (s, t) => s.cx + s.amp * Math.sin(2 * Math.PI * s.freq * t + s.phase);
   function placeSlider(s, t) {
     const b = s.body;
-    const x = s.cx + s.amp * Math.sin(2 * Math.PI * s.freq * t + s.phase);
+    const x = sliderX(s, t);
     const dx = x - b.position.x;
     Body.setPosition(b, { x, y: s.y });
     Body.setVelocity(b, { x: dx, y: 0 });
   }
 
+  const flipperAngle = (f, t) => f.base + f.amp * Math.pow(Math.max(0, Math.sin(2 * Math.PI * f.freq * t + f.phase)), 0.6);
   function placeFlipper(f, t) {
-    const s = Math.max(0, Math.sin(2 * Math.PI * f.freq * t + f.phase));
-    const a = f.base + f.amp * Math.pow(s, 0.6);
+    const a = flipperAngle(f, t);
     const b = f.body;
     const x = f.px + Math.cos(a) * f.len / 2;
     const y = f.py + Math.sin(a) * f.len / 2;
@@ -1637,6 +1768,7 @@ window.payRules = {
   let simTime = 0, raceStart = 0, acc = 0, camY = 0, slowmo = false;
   let timeScale = 1;       // 지금 물리 속도 (슬로 모션이면 SLOW_RATE 쪽으로)
   let slowHold = 0;        // 슬로 모션을 유지할 남은 시간(ms)
+  let lastDt = 0;          // 직전 물리 스텝이 흐른 시간(ms)
   let alpha = 1;           // 물리 스텝 사이 어디쯤을 그릴지 (0~1). 화면 갱신과 물리 스텝이 어긋나도 공이 부드럽게 움직인다
   let countLeft = 0, countTimer = 0;
   let statusKey = "", rankTimer = 0;
@@ -1647,12 +1779,17 @@ window.payRules = {
   function setup() {
     engine = Engine.create({ positionIterations: 8, velocityIterations: 8 });
     engine.gravity.y = GRAVITY;
-    // 맵 고르기: "random"이면 판마다 새로 뽑는다 (직전 맵은 피해서)
+    // 맵 고르기: "random"이면 한 판을 치른 뒤에만 새로 뽑는다 (직전 맵은 피해서).
+    // 이름을 고치는 것처럼 판을 다시 까는 것만으로는 맵이 바뀌지 않는다
     const want = cfg.map in MAPS ? cfg.map : cfg.map === "random" ? "random" : "classic";
     if (want === "random") {
-      const pool = MAP_IDS.filter((id) => id !== mapId);
-      mapId = pool[randInt(pool.length)];
+      if (mapPlayed || lastWant !== "random") {
+        const pool = MAP_IDS.filter((id) => id !== mapId);
+        mapId = pool[randInt(pool.length)];
+        mapPlayed = false;
+      }
     } else mapId = want;
+    lastWant = want;
     DROPS = MAPS[mapId].drops;
     course = buildCourse(engine.world, MAPS[mapId]);
     Events.on(engine, "collisionStart", onCollide);
@@ -1675,7 +1812,7 @@ window.payRules = {
       const y = 112 - Math.floor(j / 8) * 24;
       const body = Bodies.circle(x, y, R, { restitution: 0.55, friction: 0.005, frictionAir: 0.002, density: 0.0025, label: "ball" });
       Composite.add(engine.world, body);
-      return { ...p, body, done: false, lost: false, rank: 0, best: y, bestAt: 0, taken: new Set() };
+      return { ...p, body, done: false, lost: false, rank: 0, best: y, bestAt: 0, moveAt: 0, taken: new Set() };
     });
     for (let i = 0; i < 90; i++) step(STEP);
     renderAll();
@@ -1684,6 +1821,7 @@ window.payRules = {
   function startRace() {
     setup();
     if (!race) return;
+    mapPlayed = true;
     phase = "count";
     countLeft = 3;
     countTimer = 0;
@@ -1718,6 +1856,7 @@ window.payRules = {
 
   function step(dt) {
     simTime += dt;
+    lastDt = dt;
     const t = simTime / 1000;
     for (const s of course.spinners) {
       const da = s.speed * dt / 1000;
@@ -1747,11 +1886,14 @@ window.payRules = {
       if (phase !== "race") continue;
       const y = body.position.y;
       if (y > FINISH_Y) { finish(b); continue; }
+      // 한곳에 걸린 공은 살짝 튕겨 준다.
+      // 완전히 멈춘 공(핀 사이에 공 둘이 서로 기대어 선 경우 등)은 0.7초, 제자리만 맴도는 공은 2.5초 만에
+      if (sp > 0.15) b.moveAt = simTime;
       if (y > b.best + 6) { b.best = y; b.bestAt = simTime; }
-      else if (simTime - b.bestAt > 2500) {
-        // 한곳에 걸린 공은 살짝 튕겨 준다
+      else if (simTime - b.bestAt > 2500 || simTime - b.moveAt > 700) {
         Body.setVelocity(body, { x: (randInt(2) ? 1 : -1) * (2 + randInt(3)), y: -4 });
         b.bestAt = simTime;
+        b.moveAt = simTime;
         b.best = y;
       }
     }
@@ -1944,20 +2086,21 @@ window.payRules = {
   const viewHeight = () => cssH / scale;
   const clampCam = (y) => Math.max(0, Math.min(FLOOR_Y - viewHeight() + 20, y));
 
-  function updateCamera() {
+  function updateCamera(elapsed = 16.667) {
     if (drag || performance.now() < manualUntil) { camY = clampCam(camY); return; }
     const viewH = cssH / scale;
     const live = balls.filter((b) => !b.done);
     let target = 0;
     if ((phase === "race" || phase === "over") && live.length) {
-      const ys = live.map((b) => b.body.position.y);
+      const ys = live.map((b) => pos(b).y);
       const followLast = race.mode === "last" && finished.length > 0;
       target = (followLast ? Math.min(...ys) : Math.max(...ys)) - viewH * 0.45;
     } else if (phase === "over") {
       target = FINISH_Y - viewH * 0.6;
     }
     target = Math.max(0, Math.min(FLOOR_Y - viewH + 20, target));
-    camY += (target - camY) * 0.08;
+    // 따라가는 빠르기를 화면 주사율과 상관없이 같게 (60Hz 기준 프레임당 8%)
+    camY += (target - camY) * (1 - Math.pow(0.92, elapsed / 16.667));
   }
 
   // 직전 스텝과 지금 스텝 사이를 alpha만큼 이어서 그린다. 순간이동처럼 크게 튄 경우는 그냥 지금 자리
@@ -1974,6 +2117,40 @@ window.payRules = {
       p.vertices.forEach((v, i) => (i ? ctx.lineTo(v.x, v.y) : ctx.moveTo(v.x, v.y)));
       ctx.closePath();
       ctx.fill();
+    }
+  }
+
+  // 회전 막대·플리퍼·발판도 공과 같은 시각으로 그린다.
+  // 공은 직전 스텝과 지금 스텝 사이(alpha)를 그리므로, 움직이는 장치도 그만큼 되돌린 자세로 그려야
+  // 화면 주사율이 물리 스텝(초당 120번)과 안 맞을 때 덜컥거리지 않는다
+  function drawMovers(inView) {
+    const back = phase === "over" ? 0 : (1 - alpha) * lastDt;   // 되돌릴 시간(ms)
+    const t = (simTime - back) / 1000;
+    for (const s of course.spinners) {
+      const b = s.body;
+      if (!inView(b)) continue;
+      ctx.save();
+      ctx.translate(b.position.x, b.position.y);
+      ctx.rotate(-s.speed * back / 1000);
+      ctx.translate(-b.position.x, -b.position.y);
+      fillParts(b);
+      ctx.restore();
+    }
+    for (const f of course.flippers) {
+      if (!inView(f.body)) continue;
+      ctx.save();
+      ctx.translate(f.px, f.py);
+      ctx.rotate(flipperAngle(f, t));
+      ctx.fillRect(0, -5, f.len, 10);
+      ctx.restore();
+    }
+    for (const s of course.sliders) {
+      const b = s.body;
+      if (!inView(b)) continue;
+      ctx.save();
+      ctx.translate(sliderX(s, t) - b.position.x, 0);
+      fillParts(b);
+      ctx.restore();
     }
   }
 
@@ -2010,7 +2187,7 @@ window.payRules = {
       if (inView(b)) fillParts(b);
     }
     ctx.fillStyle = col.accent;
-    for (const b of course.movers) if (inView(b)) fillParts(b);
+    drawMovers(inView);
     ctx.fillStyle = col.muted;
     for (const p of course.pegs) {
       if (!inView(p)) continue;
@@ -2255,7 +2432,9 @@ window.payRules = {
   }
 
   function renderStats() {
-    els.count.textContent = `${parseNames(cfg.people).length}명`;
+    const list = parseEntries(cfg.people);
+    const total = list.reduce((s, e) => s + e.count, 0);
+    els.count.textContent = total > list.length ? `${list.length}명 · 공 ${total}개` : `${list.length}명`;
     els.sound.textContent = soundOn ? "소리 켜짐" : "소리 꺼짐";
     els.sound.setAttribute("aria-pressed", soundOn ? "true" : "false");
     els.copy.disabled = phase !== "over";
@@ -2308,7 +2487,7 @@ window.payRules = {
           phase = "race";
           raceStart = simTime;
           nextTwist = simTime + 6000 + randInt(3000);
-          balls.forEach((b) => { b.bestAt = simTime; b.best = b.body.position.y; });
+          balls.forEach((b) => { b.bestAt = simTime; b.moveAt = simTime; b.best = b.body.position.y; });
           beep(true);
           renderAll();
           announce(`출발! 맵: ${MAPS[mapId].name}`);
@@ -2327,7 +2506,7 @@ window.payRules = {
       if (n === 8) acc = 0;
     }
     alpha = phase === "over" ? 1 : Math.min(1, acc / STEP);
-    updateCamera();
+    updateCamera(elapsed);
     draw();
     rankTimer += elapsed;
     if (rankTimer > 200) {
@@ -2726,6 +2905,7 @@ window.payRules = {
 
   function step(dt) {
     simTime += dt * 1000;
+    for (const r of runners) r.px = r.x;   // 그릴 때 직전 자리와 지금 자리 사이를 잇는다
     // 레인 순서가 결과에 끼어들지 않게 매 스텝 처리 순서를 섞는다
     const live = shuffle(runners.filter((r) => !r.done));
     if (!live.length) return;
@@ -2893,14 +3073,18 @@ window.payRules = {
     // 지금 순위: 골인한 순서 다음에 남은 동물을 앞선 순서대로
     const order = finished.concat(live.slice().sort((a, b) => b.x - a.x));
     const racing = phase === "race" || phase === "over";
+    // 계산은 0.05초마다 하지만 화면은 매 프레임 그 사이를 이어서 그린다 (안 그러면 초당 20번만 뚝뚝 움직인다)
+    const a = phase === "race" ? Math.min(1, acc / STEP) : 1;
     for (const r of runners) {
       const { lane, run, runner, bubble, place, dist } = r.el;
-      run.style.setProperty("--p", (Math.min(LEN, r.x) / LEN).toFixed(4));
+      // 로켓·자리 바꾸기처럼 크게 튄 경우는 잇지 않는다 (그건 CSS 전환이 맡는다)
+      const sx = r.px === undefined || Math.abs(r.x - r.px) > 6 ? r.x : r.px + (r.x - r.px) * a;
+      run.style.setProperty("--p", (Math.min(LEN, Math.max(0, sx)) / LEN).toFixed(4));
       const mood = phase === "race" && !r.done ? r.mood : "run";
       const item = phase === "race" && !r.done && simTime < r.itemUntil;
       const warp = phase === "race" && simTime < r.warpUntil;
       run.classList.toggle("warp", warp);
-      const m = Math.floor(Math.min(LEN, r.x));
+      const m = Math.floor(Math.min(LEN, sx));
       const showDist = racing && !r.done && m >= 4;
       if (dist.hidden === showDist) dist.hidden = !showDist;
       const distText = `${m}m`;
